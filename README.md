@@ -6,7 +6,8 @@ Static site (no build step, no server code) hosted on GitHub Pages.
 |------|-----------|
 | `/` | Redirect to the recommender |
 | `/recommender.html` | HomeoAI clinical recommender — patient details → Top 5 remedies (weightage) |
-| `/data/` | JS/JSON indexes the recommender loads (~18 MB) |
+| `/data/` | JS/JSON indexes the recommender loads (~19 MB) |
+| `/data/boericke_full.js` | Full Boericke Materia Medica, 689 remedies — merged from `HomeoDBs/boericke-alt` + `boericke-688`, scored into every rubric and shown as an expandable panel on each result |
 
 ## AI settings
 

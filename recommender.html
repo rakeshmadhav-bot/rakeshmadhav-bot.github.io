@@ -343,7 +343,7 @@ thead th{font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 </div>
 
 <div class="footer">
-  <strong>ABC Repertorisation:</strong> each symptom = one rubric (12 base, +2 G1, +1 G2, +3 K0 keynote). Boosted symptoms score ×N. Order = score → coverage → age/gender fit. <b>Data:</b> DB 767 (Boericke/Kent/Phatak) + ABC 763 + Tautopathy 47 agents. Stock from Homeo List 06/07/2026. Already-given check: inimical/antidote → skip, complementary → compare → neutral. Clinical layer: Qwen-style 7 steps offline. History in localStorage.
+  <strong>ABC Repertorisation:</strong> each symptom = one rubric (12 base, +2 G1, +1 G2, +3 K0 keynote). Boosted symptoms score ×N. Order = score → coverage → age/gender fit. <b>Data:</b> DB 767 (Boericke/Kent/Phatak) + <b>full Boericke Materia Medica 689 texts (data/boericke_full.js — scored into every rubric)</b> + ABC 763 + Tautopathy 47 agents. Stock from Homeo List 06/07/2026. Already-given check: inimical/antidote → skip, complementary → compare → neutral. Clinical layer: Qwen-style 7 steps offline. History in localStorage.
 </div>
 
 <script src="data/embed.js"></script>
@@ -352,6 +352,7 @@ thead th{font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 <script src="data/tautopathy_data.js"></script>
 <script src="data/oorep_index.js"></script>
 <script src="data/oorep_rag.js"></script>
+<script src="data/boericke_full.js"></script>
 <script>
 let DB=[];
 let ABC=[];
@@ -360,6 +361,16 @@ function loadDB(){
   if(window.EMBED) DB=window.EMBED;
   if(window.ABC_INDEX) ABC=window.ABC_INDEX;
   if(window.TAUTOPATHY_DATA) TAUTOPATHY=window.TAUTOPATHY_DATA;
+  try{
+    var bf=window.BOERICKE_FULL||[], bfMap={}, bfName={};
+    bf.forEach(function(b){
+      var k=String(b.abbr||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      var nm=String(b.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      if(k && !bfMap[k]) bfMap[k]=b;
+      if(nm && !bfName[nm]) bfName[nm]=b;
+    });
+    window.BOERICKE_MAP=bfMap; window.BOERICKE_BY_NAME=bfName;
+  }catch(e){ window.BOERICKE_MAP=window.BOERICKE_MAP||{}; window.BOERICKE_BY_NAME=window.BOERICKE_BY_NAME||{}; }
   // Load additional data files (skip fetch on file:// to avoid CORS errors)
   var isFileProtocol = location.protocol === 'file:';
   if(!isFileProtocol){
@@ -372,9 +383,9 @@ function loadDB(){
     if(window.SPEC_REPS) window.SPEC_REPS=window.SPEC_REPS.repertories||[];
     if(window.CURED_CASES) window.CURED_CASES=window.CURED_CASES.cases||[];
   }
-  console.log('DB', DB.length, 'ABC', ABC.length, 'TAUTOPATHY', TAUTOPATHY?TAUTOPATHY.agents.length:0, 'OOREP', window.OOREP?window.OOREP.meta.remedies:0);
+  console.log('DB', DB.length, 'ABC', ABC.length, 'TAUTOPATHY', TAUTOPATHY?TAUTOPATHY.agents.length:0, 'OOREP', window.OOREP?window.OOREP.meta.remedies:0, 'BOERICKE_FULL', Object.keys(window.BOERICKE_MAP||{}).length);
   const st=document.getElementById('dbStatus');
-  if(st) st.textContent = `DB: ${DB.length} detailed + ABC: ${ABC.length} remedies + Tautopathy: ${TAUTOPATHY?TAUTOPATHY.agents.length:0} agents + OOREP: ${window.OOREP?window.OOREP.meta.remedies:0} repertory remedies`;
+  if(st) st.textContent = `Boericke MM: ${Object.keys(window.BOERICKE_MAP||{}).length} full texts + DB: ${DB.length} detailed + ABC: ${ABC.length} remedies + Tautopathy: ${TAUTOPATHY?TAUTOPATHY.agents.length:0} agents + OOREP: ${window.OOREP?window.OOREP.meta.remedies:0} repertory remedies`;
 }
 loadDB();
 
@@ -548,6 +559,16 @@ const ageBoost = {
 function getHistory(){ try{ const h=JSON.parse(localStorage.getItem('homeo_history')||'[]'); return Array.isArray(h)?h:[]; }catch(e){ return []; } }
 function saveHistory(arr){ localStorage.setItem('homeo_history', JSON.stringify(arr)); renderHistory(); try{ refreshPatientList(); showCaseSheet(); refreshPnameSelect(); }catch(e){} }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function mmBlockFor(r){
+  if(!r) return '';
+  const k=String(r.abbr||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const nm=String(r.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const b=(window.BOERICKE_MAP||{})[k]||(window.BOERICKE_BY_NAME||{})[nm];
+  if(!b) return '';
+  const txt=String(b.text||'').slice(0,7000);
+  const rel=String(b.relationship||'');
+  return `<details style="margin-top:8px;border-top:1px dashed var(--border);padding-top:6px"><summary style="cursor:pointer;font-weight:700;font-size:12px">📖 Full Boericke Materia Medica — ${esc(b.name||r.name)} (${esc(b.abbr||r.abbr)})</summary><div style="font-size:12px;line-height:1.55;white-space:pre-wrap;margin-top:6px;max-height:360px;overflow:auto;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px">${esc(txt)}${rel?`\n\nRelationship:\n${esc(rel)}`:''}</div></details>`;
+}
 function fmtDT(ts){ try{ const d=new Date(ts); return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ts||''; } }
 function splitDT(ts){ try{ const d=new Date(ts); return {date:d.toLocaleDateString(), time:d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}; }catch(e){ return {date:'',time:''}; } }
 function potencyOf(s){ const m=String(s||'').match(/\b(10M|1M|LM|10X|\d+\s*(?:C|CH|X))\b/i); return m?m[1].replace(/\s+/g,'').toUpperCase():''; }
@@ -1533,8 +1554,11 @@ function recommend(){
     const k0txt = (r.keynotes||[]).join(' ');
     const onorm = String(r.abbr||'').toLowerCase().replace(/[^a-z0-9]/g,'');
     const orub = (window.OOREP && window.OOREP.byRemedy[onorm] || []).map(x=>x.t).join(' ').slice(0,8000);
-    const g2txt = [r.boericke?.mind, r.boericke?.generals, r.boericke?.particulars, r.boericke?.modalities, r.kent, r.phatak, orub].join(' ');
-    const haytxt = [g1txt, g2txt, k0txt, r.kingdom, r.family].join(' ');
+    const bfRec = (window.BOERICKE_MAP||{})[onorm] || null;
+    const bfTxt = bfRec ? String(bfRec.text||'').slice(0,8000) : '';
+    const bfRel = bfRec ? String(bfRec.relationship||'') : '';
+    const g2txt = [r.boericke?.mind, r.boericke?.generals, r.boericke?.particulars, r.boericke?.modalities, r.kent, r.phatak, orub, bfTxt].join(' ');
+    const haytxt = [g1txt, g2txt, k0txt, r.kingdom, r.family, bfRel].join(' ');
     const z = zonesOf(g1txt, g2txt, haytxt, r, k0txt);
     const s = abcScoreGroups(groups, z.g1, z.g1w, z.g2, z.g2w, z.hay, z.hayw, z.k0, z.k0w);
     const f = ageGenderFit(r.abbr, r.name, group, gender);
@@ -1542,7 +1566,8 @@ function recommend(){
     // Mind + Concomitants priority (Sehgal/Q-Rep + Khullar/Kent): Mind hit in mind/keynotes = +2 each (cap 6); concomitant cover >=2 in mind+generals = +2
     let mindBonus = 0, concBonus = 0;
     try{
-      const mindTxt = [(r.boericke&&r.boericke.mind||''), (r.keynotes||[]).join(' ')].join(' ').toLowerCase();
+      const bfMind = bfTxt ? ((bfTxt.match(/Mind[^a-z0-9]{0,4}[\s\S]{0,1400}/i)||[''])[0]) : '';
+      const mindTxt = [(r.boericke&&r.boericke.mind||''), (r.keynotes||[]).join(' '), bfMind].join(' ').toLowerCase();
       const mindW = mindTxt.split(/[^a-z0-9-]+/).filter(x=>x.length>=3);
       const genTxt = [(r.boericke&&r.boericke.generals||''), mindTxt].join(' ').toLowerCase();
       const genW = genTxt.split(/[^a-z0-9-]+/).filter(x=>x.length>=3);
@@ -1570,8 +1595,12 @@ function recommend(){
     const g1txt = [a.name, a.abbr, (a.aka||[]).join(' '), a.hpus, (a.common_symptoms||[]).join(' ')].join(' ');
     const g2txt = [a.category, (a.common_symptoms||[]).join(' '), a.general, a.mind, a.worse, a.better, a.sup_mind, a.sup_gen, a.blob,
       (a.reverse_sample||[]).map(x=> (x.name||'')+' '+(x.text||'')).join(' ')].join(' ');
-    const haytxt = [g1txt, g2txt, (a.potencies||[]).join(' ')].join(' ');
-    const z = zonesOf(g1txt, g2txt, haytxt, a, '');
+    const aKey = String(a.abbr||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const aName = String(a.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const bfa = (window.BOERICKE_MAP||{})[aKey] || (window.BOERICKE_BY_NAME||{})[aName] || null;
+    const bfTxtA = bfa ? String(bfa.text||'').slice(0,8000) : '';
+    const haytxt = [g1txt, g2txt, (a.potencies||[]).join(' '), bfTxtA, bfa?String(bfa.relationship||''):''].join(' ');
+    const z = zonesOf(g1txt, [g2txt, bfTxtA].join(' '), haytxt, a, '');
     const s = abcScoreGroups(groups, z.g1, z.g1w, z.g2, z.g2w, z.hay, z.hayw, '', []);
     const f = ageGenderFit(a.abbr||'', a.name||'', group, gender);
     const ragBonusA = Math.min(12, Math.round((rag.bonus[ragNorm(a.abbr)]||0)/4));
@@ -1838,6 +1867,7 @@ function recommend(){
         <div style="font-size:12px"><b>${isABC?'ABC General/Mind':'Boericke'}:</b> ${(isABC ? (abc.mind||abc.general||'') : r.boericke.mind).slice(0,160)}...</div>
         ${abcExtra}
         <div class="dose"><b>Modalities:</b> ${(isABC ? `${abc.worse||''} ${abc.better||''}` : r.boericke.modalities).toString().slice(0,300)}<br><b>Dose (age-adjusted):</b> ${doseNote}${(r.clinical_tips&&r.clinical_tips.length)?`<br>💡 <b>Clinical tip:</b> ${esc(r.clinical_tips[0]).slice(0,220)}`:''}</div>
+        ${mmBlockFor(r)}
       </div>
     `;
   }).join('') + `<div style="text-align:center;margin-top:8px"><button onclick="window.print()" class="btn-ghost" style="min-height:40px">Print / Save PDF</button></div>`;
