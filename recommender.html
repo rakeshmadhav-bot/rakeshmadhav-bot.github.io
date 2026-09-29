@@ -164,8 +164,8 @@ thead th{font-size:11px;text-transform:uppercase;letter-spacing:.5px}
     <div>
       <label>Provider</label>
       <select id="aiProvider" onchange="onProviderChange()">
+        <option value="openrouter" selected>OpenRouter (free models)</option>
         <option value="opencode">OpenCode (opencode.ai)</option>
-        <option value="openrouter">OpenRouter (free models)</option>
       </select>
     </div>
     <div id="opencodeSettings" style="display:none">
@@ -182,7 +182,7 @@ thead th{font-size:11px;text-transform:uppercase;letter-spacing:.5px}
     <div id="openrouterSettings" style="display:none">
       <label>OpenRouter API Key</label>
       <input type="password" id="openrouterApiKey" placeholder="sk-or-... (from openrouter.ai)" autocomplete="off">
-      <div class="hint">Get your key from <a href="https://openrouter.ai" target="_blank">openrouter.ai</a> — free models available</div>
+      <div class="hint">Key pre-filled for this deployment (works out of the box) — paste your own key from <a href="https://openrouter.ai" target="_blank">openrouter.ai</a> to bill your own account.</div>
       <label>Model</label>
       <select id="openrouterModel">
         <option value="nvidia/nemotron-3.5-lightning:free">Nemotron 3.5 Lightning (free, fastest)</option>
@@ -885,8 +885,8 @@ function saveVisit(){
   saveHistory(h);
   alert(`Visit saved for ${pname} — ${new Date().toLocaleString()} — ${pick} ${potency}`);
 }
-let onlineAssist=false;
-try{ onlineAssist = localStorage.getItem('homeo_online')==='1'; }catch(e){}
+let onlineAssist=true;
+try{ const _ov=localStorage.getItem('homeo_online'); if(_ov!==null) onlineAssist=(_ov==='1'); }catch(e){}
 function setOnline(v){
   onlineAssist=!!v;
   try{ localStorage.setItem('homeo_online', onlineAssist?'1':'0'); }catch(e){}
@@ -925,7 +925,7 @@ function renderQwenPanel(){
   if(!onlineAssist || !lastTop5 || !lastTop5.length){ p.style.display='none'; return; }
   p.style.display='block';
   let _orvModel='Nemotron via OpenRouter';
-  try{ const _s=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}'); if(_s.openrouterModel) _orvModel=_s.openrouterModel.split('/').pop().replace(':free',' (free)'); }catch(e){}
+  try{ const _s=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}'); const _m=_s.openrouterModel||DEFAULT_OPENROUTER_MODEL; _orvModel=_m.split('/').pop().replace(':free',' (free)'); }catch(e){}
   p.innerHTML=`🌐 <b>Online AI Verification (${esc(_orvModel)})</b>
     <div style="margin-top:8px"><button class="btn" onclick="runOpenRouterVerification()">Run AI Verification</button> <button class="btn-ghost" onclick="copyQwenPrompt()">Copy prompt</button> <button class="btn-ghost" onclick="openQwen()">Open Qwen manually</button></div>
     <div id="openrouterResult" style="margin-top:10px;display:none"></div>
@@ -934,12 +934,14 @@ function renderQwenPanel(){
   if(t) t.value=buildQwenPrompt();
 }
 let _orvAbort=null; // AbortController for the running verification
+const DEFAULT_OPENROUTER_KEY='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';
+const DEFAULT_OPENROUTER_MODEL='nvidia/nemotron-3.5-lightning:free';
 async function runOpenRouterVerification(){
   const resultDiv=document.getElementById('openrouterResult');
   const btn=(typeof event!=='undefined'&&event&&event.target)?event.target:null;
   if(btn){ btn.disabled=true; btn.textContent='Running AI verification...'; }
   const settings=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}');
-  const model=settings.openrouterModel || 'nvidia/nemotron-3.5-lightning:free';
+  const model=settings.openrouterModel || DEFAULT_OPENROUTER_MODEL;
   resultDiv.style.display='block';
   resultDiv.style.background='var(--accent-soft)';
   resultDiv.style.color='var(--accent)';
@@ -952,7 +954,7 @@ async function runOpenRouterVerification(){
   _orvAbort=new AbortController();
   const timeout=setTimeout(function(){ timedOut=true; _orvAbort.abort(); },180000); // hard 3-min cap
   try{
-    const apiKey=settings.openrouterApiKey;
+    const apiKey=settings.openrouterApiKey || DEFAULT_OPENROUTER_KEY;
     if(!apiKey || apiKey.includes('YOUR_')){
       throw new Error('OpenRouter API key not configured. Open Settings (⚙️) and add your key.');
     }
@@ -1929,8 +1931,8 @@ try{ const _sf=document.getElementById('stockFile'); if(_sf) _sf.addEventListene
       onProviderChange();
       if(s.opencodeApiKey) document.getElementById('opencodeApiKey').value=s.opencodeApiKey;
       if(s.opencodeModel) document.getElementById('opencodeModel').value=s.opencodeModel;
-      if(s.openrouterApiKey) document.getElementById('openrouterApiKey').value=s.openrouterApiKey;
-      if(s.openrouterModel) document.getElementById('openrouterModel').value=s.openrouterModel;
+      document.getElementById('openrouterApiKey').value=s.openrouterApiKey || DEFAULT_OPENROUTER_KEY;
+      document.getElementById('openrouterModel').value=s.openrouterModel || DEFAULT_OPENROUTER_MODEL;
     }catch(e){}
   }
   function saveAISettings(){

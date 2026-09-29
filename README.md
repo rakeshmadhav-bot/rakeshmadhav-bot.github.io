@@ -11,9 +11,16 @@ Static site (no build step, no server code) hosted on GitHub Pages.
 
 ## AI settings
 
-The recommender calls OpenRouter / OpenAI-compatible APIs **from your browser**.
-Open **AI Settings** in the app and paste your own key — it is stored in your
-browser's `localStorage` only. No keys live in this repository.
+Online assist is **on by default**, and the site ships pre-configured:
+OpenRouter provider, model `nvidia/nemotron-3.5-lightning:free`, and a
+pre-filled API key — so anyone with the link can run AI verification without
+pasting anything.
+
+**⚠ That key is visible in the page source to everyone.** Its balance is
+effectively public: keep a hard credit limit at
+[openrouter.ai/settings/credits](https://openrouter.ai/settings/credits) and
+rotate the key if it is ever abused. Pasting your own key in **AI Settings**
+bills your own account instead (stored in your browser's `localStorage` only).
 
 ## Updating
 
