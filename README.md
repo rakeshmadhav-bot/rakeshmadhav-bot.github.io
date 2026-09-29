@@ -11,16 +11,29 @@ Static site (no build step, no server code) hosted on GitHub Pages.
 
 ## AI settings
 
-Online assist is **on by default**, and the site ships pre-configured:
-OpenRouter provider, model `nvidia/nemotron-3.5-lightning:free`, and a
-pre-filled API key — so anyone with the link can run AI verification without
-pasting anything.
+Online assist is **on by default**. Calls go through a **built-in relay** — the
+Cloudflare Worker in [`worker/`](worker/) holds the OpenRouter API key as an
+encrypted Worker secret, so the page ships with **no key at all** and visitors
+need none to use it. The relay refuses every model that isn't `:free`, so it
+cannot be used to spend money (rate limits only).
 
-**⚠ That key is visible in the page source to everyone.** Its balance is
-effectively public: keep a hard credit limit at
-[openrouter.ai/settings/credits](https://openrouter.ai/settings/credits) and
-rotate the key if it is ever abused. Pasting your own key in **AI Settings**
-bills your own account instead (stored in your browser's `localStorage` only).
+Default model: `nvidia/nemotron-3.5-lightning:free` via OpenRouter. Pasting
+your own key in **AI Settings** bypasses the relay and bills your account
+(stored in your browser's `localStorage` only).
+
+Free-tier latency swings hard — answers can take 1–4 minutes at peak times;
+the UI shows an elapsed timer and a Cancel button, and gives up after 5 minutes.
+
+### Relay
+
+```sh
+cd worker
+npx wrangler deploy
+echo -n "sk-or-..." | npx wrangler secret put OPENROUTER_API_KEY   # never committed
+```
+
+Then point `AI_RELAY_URL` in `recommender.html` at the deployed
+`/v1/chat/completions` URL. The relay's key lives only in Cloudflare.
 
 ## Updating
 
