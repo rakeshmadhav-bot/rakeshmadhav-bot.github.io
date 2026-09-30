@@ -939,6 +939,19 @@ let _orvAbort=null; // AbortController for the running verification
 // Settings (⚙️) to call OpenRouter directly and bill your own account instead.
 const AI_RELAY_URL='https://homeoai-relay.rakeshmadhav111.workers.dev/v1/chat/completions';
 const DEFAULT_OPENROUTER_MODEL='nvidia/nemotron-3.5-lightning:free';
+// Returns true=valid, false=definitively dead (revoked), null=could not verify (offline).
+async function probeOpenRouterKey(key){
+  try{
+    const ctl=('AbortSignal' in window && typeof AbortSignal.timeout==='function')?AbortSignal.timeout(15000):undefined;
+    const ck=await fetch('https://openrouter.ai/api/v1/auth/key',{headers:{'Authorization':'Bearer '+key},signal:ctl});
+    return ck.ok?true:false;
+  }catch(e){ return null; }
+}
+// Wipe a saved key from the Settings field and from localStorage.
+function clearSavedKey(){
+  try{ const _kf=document.getElementById('openrouterApiKey'); if(_kf) _kf.value=''; }catch(e){}
+  try{ const s=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}'); if(s.openrouterApiKey){ s.openrouterApiKey=''; localStorage.setItem('homeo_ai_settings',JSON.stringify(s)); } }catch(e){}
+}
 async function runOpenRouterVerification(){
   const resultDiv=document.getElementById('openrouterResult');
   const btn=(typeof event!=='undefined'&&event&&event.target)?event.target:null;
@@ -953,15 +966,7 @@ async function runOpenRouterVerification(){
   // A saved key can be stale/revoked (it would come back as "User not found").
   // Probe it cheaply first; if it is dead, drop it and use the built-in relay.
   if(ownKey && ownKey.indexOf('YOUR_')<0){
-    try{
-      const ctl=('AbortSignal' in window && typeof AbortSignal.timeout==='function')?AbortSignal.timeout(15000):undefined;
-      const ck=await fetch('https://openrouter.ai/api/v1/auth/key',{headers:{'Authorization':'Bearer '+ownKey},signal:ctl});
-      if(!ck.ok){
-        ownKey='';
-        try{ const _kf=document.getElementById('openrouterApiKey'); if(_kf) _kf.value=''; }catch(e3){}
-        try{ const s2=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}'); if(s2.openrouterApiKey){ s2.openrouterApiKey=''; localStorage.setItem('homeo_ai_settings',JSON.stringify(s2)); } }catch(e2){}
-      }
-    }catch(e){ /* network hiccup — keep the saved key */ }
+    if((await probeOpenRouterKey(ownKey))===false){ ownKey=''; clearSavedKey(); }
   }
   let endpoint, authHeader, via;
   if(ownKey && ownKey.indexOf('YOUR_')<0){
@@ -1964,6 +1969,13 @@ try{ const _sf=document.getElementById('stockFile'); if(_sf) _sf.addEventListene
       if(s.opencodeModel) document.getElementById('opencodeModel').value=s.opencodeModel;
       document.getElementById('openrouterApiKey').value=s.openrouterApiKey || '';
       document.getElementById('openrouterModel').value=s.openrouterModel || DEFAULT_OPENROUTER_MODEL;
+      // Validate any saved key as soon as the page opens: a revoked one (left
+      // behind by an older build of this page) is wiped on the spot, so nobody
+      // ever sees "User not found" — the built-in relay is used instead.
+      const _sk=(s.openrouterApiKey||'').trim();
+      if(_sk && _sk.indexOf('YOUR_')<0){
+        probeOpenRouterKey(_sk).then(ok=>{ if(ok===false) clearSavedKey(); }).catch(()=>{});
+      }
     }catch(e){}
   }
   function saveAISettings(){
