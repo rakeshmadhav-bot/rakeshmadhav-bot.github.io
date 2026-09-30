@@ -917,7 +917,7 @@ function buildQwenPrompt(){
         + `\nAdditional task: if the case is "never well since" the above drug/vaccine/toxin, consider the potentized same agent as an obstacle-to-cure layer and state so explicitly; if not applicable, say it is not indicated.\n`;
     }
   }catch(e){}
-  return `You are a homeopathy assistant. Patient: ${pname}, age ${age}, gender ${gender}.\nSymptoms (plain language): ${sym}.\n${rel}My offline AI's Top 5 by symptom-combination weightage (lexical recall only, not final prescription):\n${lines}\nTask: 1) Briefly interpret these symptoms in homeopathic terms. 2) For each of the Top 5 label VERIFIED (constitutional / essence match) or WEIGHT-ONLY (keyword overlap only) with one line of reasoning. Expect only 1-2 VERIFIED, rest WEIGHT-ONLY — this is normal. 3) Name your single best-fit remedy with potency reasoning. Keep it concise and educational.${tautoCtx}`;
+  return `You are a homeopathy assistant. Patient: ${pname}, age ${age}, gender ${gender}.\nSymptoms (plain language): ${sym}.\n${rel}My offline AI's Top 5 by symptom-combination weightage (lexical recall only, not final prescription):\n${lines}\nTask: 1) Briefly interpret these symptoms in homeopathic terms. 2) For each of the Top 5 label VERIFIED (constitutional / essence match) or WEIGHT-ONLY (keyword overlap only) with one line of reasoning. Expect only 1-2 VERIFIED, rest WEIGHT-ONLY — this is normal. 3) Name your single best-fit remedy with potency reasoning. 4) Suggest your recommended medicines with potency reasoning, if it is missing from the Top 5. Keep it concise and educational.${tautoCtx}`;
 }
 function renderQwenPanel(){
   const p=document.getElementById('qwenPanel');
