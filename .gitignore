@@ -1,3 +1,5 @@
 .wrangler/
-node_modules/
+worker/seed/batch-*.sql
 .DS_Store
+scripts/__pycache__/
+database/

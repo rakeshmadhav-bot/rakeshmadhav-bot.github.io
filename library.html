@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Homeopathy Library Search</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1a1f2e;--muted:#5a6178;--border:#e2e5ec;--accent:#2563eb;--soft:#eff4ff}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,Segoe UI,Arial,sans-serif}header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}a{color:var(--accent)}main{max-width:1100px;margin:24px auto;padding:0 18px}.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px;box-shadow:0 4px 16px #0000000a}input,select,button{font:inherit;border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--card);color:var(--ink)}input{width:100%;min-height:46px}button{cursor:pointer}.row{display:grid;grid-template-columns:1fr 210px;gap:10px}.stats{color:var(--muted);font-size:12px;margin-top:8px}.item{padding:14px 0;border-top:1px solid var(--border)}.item h3{margin:0;font-size:16px}.tag{display:inline-block;background:var(--soft);padding:2px 8px;border-radius:20px;color:#1d4ed8;font-size:11px;margin:4px 4px 4px 0}.body{white-space:pre-wrap;max-height:220px;overflow:auto;margin-top:8px}.source{font-size:11px;color:var(--muted)}.status{padding:10px;background:var(--soft);border-radius:9px;margin-top:10px}.hidden{display:none}@media(max-width:650px){header{padding:12px;flex-wrap:wrap}.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><strong>HomeoAI · Library</strong><a href="recommender.html">Back to recommender</a></header>
+<main>
+<section class="card">
+<h1 style="margin:0 0 4px">Search the local reference database</h1>
+<p style="margin:0;color:var(--muted)">Search remedies, materia medica, repertory rubrics, modalities, and reference records imported from this project’s datasets.</p>
+<div class="row" style="margin-top:14px"><input id="query" type="search" placeholder="Search e.g. Aconitum, cough, worse motion" autocomplete="off"><select id="filter"><option value="all">All categories</option><option value="remedy">Remedies</option><option value="materia_medica">Materia medica</option><option value="rubric">Rubrics</option><option value="reference_document">Reference documents</option><option value="inventory">Inventory</option></select></div>
+<div id="status" class="status">Connecting to search API…</div><div id="stats" class="stats"></div>
+</section>
+<section class="card"><div id="results" aria-live="polite"></div></section>
+<section class="card" style="font-size:12px;color:var(--muted)"><b>Coverage and use:</b> This is a searchable subset of the project’s locally available data, not all material on the internet. Sources and licenses vary; verify before reuse. Homeopathy-related content is presented as historical/reference material and is not evidence of efficacy or a substitute for medical care.</section>
+</main>
+<script>
+(()=>{
+ const API_BASE='https://homeoai-relay.rakeshmadhav111.workers.dev';
+ const status=document.getElementById('status'), results=document.getElementById('results'), query=document.getElementById('query'), filter=document.getElementById('filter'), stats=document.getElementById('stats');
+ let docs=[], apiAvailable=false, requestNo=0, localLoading=null;
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function excerpt(body,q){let text=String(body||'');let p=q?text.toLowerCase().indexOf(q.toLowerCase()):-1;if(p<0)p=0;let start=Math.max(0,p-180);return (start?'…':'')+text.slice(start,start+800)+(start+800<text.length?'…':'')}
+ function showLocal(q,type){
+   const terms=q.toLowerCase().split(/\s+/).filter(Boolean);
+   const hits=docs.filter(d=>(type==='all'||d.type===type)&&terms.every(t=>(d.title+' '+d.body+' '+d.source).toLowerCase().includes(t))).slice(0,50);
+   showResults(hits,q,docs.length?'Local fallback':'');
+ }
+ function showResults(hits,q,sourceLabel='API'){
+   stats.textContent=`${hits.length}${hits.length>=50?' (up to 50 shown)':''} result(s)${sourceLabel?' · '+sourceLabel:''}`;
+   if(!hits.length){results.innerHTML='<p style="color:var(--muted)">No results found.</p>';return}
+   results.innerHTML=hits.map(d=>`<article class="item"><h3>${esc(d.title||'Untitled')}</h3><span class="tag">${esc((d.type||'').replaceAll('_',' '))}</span>${d.source?`<span class="tag">${esc(d.source)}</span>`:''}<div class="body">${esc(excerpt(d.body,q))}</div><div class="source">License: ${esc(d.license||'unknown')}${d.url?` · <a href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">Source</a>`:''}</div></article>`).join('');
+ }
+ async function render(){
+   const q=query.value.trim();
+   if(q.length<2){results.innerHTML='<p style="color:var(--muted)">Enter at least two characters to search.</p>';stats.textContent='';return}
+   const type=filter.value, current=++requestNo;
+   if(apiAvailable){
+     try{
+       const params=new URLSearchParams({q,type,limit:'50'});
+       const response=await fetch(`${API_BASE}/v1/search?${params}`,{headers:{Accept:'application/json'}});
+       if(!response.ok)throw new Error(`HTTP ${response.status}`);
+       const payload=await response.json();
+       if(current!==requestNo)return;
+       showResults(payload.results||[],q,'Search API'); return;
+     }catch(e){apiAvailable=false;status.textContent=`Search API unavailable (${e.message}); using downloaded search index.`;if(!docs.length)await loadLocal()}
+   }
+   showLocal(q,type);
+ }
+ async function loadLocal(){if(localLoading)return localLoading;localLoading=(async()=>{try{const response=await fetch('data/homeopathy_search.json.gz');if(!response.ok)throw new Error(`HTTP ${response.status}`);const compressed=await response.arrayBuffer();if(!('DecompressionStream'in window))throw new Error('This browser cannot read the compressed data file.');const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));docs=JSON.parse(await new Response(stream).text());status.textContent=`Local fallback ready · ${docs.length.toLocaleString()} entries`;return true}catch(e){status.textContent=`Local search index unavailable: ${e.message}`;return false}})();return localLoading}
+ async function init(){
+   try{const response=await fetch(`${API_BASE}/v1/health`,{headers:{Accept:'application/json'}});const health=await response.json();if(!response.ok||!health.ok)throw new Error('API database not configured');apiAvailable=true;status.textContent='Connected to live database search API.'}
+   catch(e){apiAvailable=false;status.textContent=`API unavailable (${e.message}); loading local fallback…`;await loadLocal()}
+ }
+ let timer;query.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(render,180)});filter.addEventListener('change',render);init();
+})();
+</script>
+</body>
+</html>

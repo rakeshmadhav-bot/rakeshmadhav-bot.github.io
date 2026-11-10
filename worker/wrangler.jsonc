@@ -6,4 +6,14 @@
   "observability": {
     "enabled": true
   }
+  // To (re)enable the D1-backed search API: create the database, put its ID
+  // below, apply migrations + import, then redeploy (README.md → Database API).
+  // "d1_databases": [
+  //   {
+  //     "binding": "HOMEOPATHY_DB",
+  //     "database_name": "homeopathy-library",
+  //     "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+  //     "migrations_dir": "migrations"
+  //   }
+  // ]
 }
