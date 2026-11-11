@@ -48,6 +48,30 @@ question stays open). The interview state never advances on a Kojo reply, and
 with online assist off (or the relay unreachable) the app stays fully offline
 and rule-based as before.
 
+### Deep AI analysis (web-verified re-rank)
+
+Immediately after the offline Top 5 appears, the chat automatically runs a
+**deep analysis** through the relay while online assist is on:
+
+1. **Internet verification** — the relay (`/v1/web`, keyless) searches live
+   sources (DuckDuckGo, Wikipedia fallback) for materia-medica / repertory
+   pages matching the case's chief symptom and modality. First hits typically
+   include Boericke entries (homeoint.org, materiamedica.info).
+2. **Collective analysis** — Kojo reads the whole case as a totality (chief
+   complaint, modalities, concomitants, cause, mind, age/sex) and interprets
+   picture, miasm and keynote pattern.
+3. **Individual repertorisation** — each recorded symptom is mapped to its
+   Kent-style rubric with leading remedies per rubric.
+4. **Full-corpus verification** — Kojo checks the offline Top 5 against the
+   *entire* classical materia medica (every remedy on record, beyond the
+   small offline library) and produces a **Final Top 5**, marking remedies
+   absent from the offline database with an asterisk.
+5. The verified list is stored on the case, so later chat questions and the
+   AI-verification step reason from the same Final Top 5.
+
+The offline ranking always remains displayed and stands as fallback if the
+AI phase fails; failures never break the interview flow.
+
 ## AI settings
 
 Online assist is **on by default**. The AI supervisor's operating stance is

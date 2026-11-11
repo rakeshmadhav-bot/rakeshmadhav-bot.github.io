@@ -2895,6 +2895,13 @@ async function chatRunResults(force){
   chatStatus('Ranked '+lastTop5.length+' remedies');
   chatBot(chatCaseSummary(tokens)+chatResultsHtml());
   chatSetChips(['Add another symptom','Full reasoning','New consultation']);
+  // Deep analysis upgrade: with online assist on, Kojo re-checks the offline
+  // ranking against the full classical materia medica, repertories and live
+  // internet sources, and appends its verified Final Top 5 in the same chat.
+  // Fire-and-forget: the patient can keep using the interview while it streams.
+  if(typeof onlineAssist!=='undefined' && onlineAssist){
+    chatKojoDeepAnalysis().catch(function(e){ console.error('deep analysis hook', e); });
+  }
 }
 function chatCaseSummary(tokens){
   var who=[CHAT.name, CHAT.age!==''?CHAT.age+'y':'', CHAT.gender].filter(Boolean).map(esc).join(' • ');
@@ -3232,7 +3239,9 @@ function chatLooksQuestion(t){
 function chatAIResolve(){
   var settings={};
   try{ settings=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}'); }catch(e){}
-  var apiProvider=settings.provider==='kojo'?'kojo':'openrouter';
+  // Kojo is the designated chat provider (per app setup); OpenRouter stays
+  // available for users who explicitly choose it in ⚙️ AI Settings.
+  var apiProvider=settings.provider==='openrouter'?'openrouter':'kojo';
   var ownKey=apiProvider==='kojo' ? ((settings.kojoApiKey||'').trim()) : ((settings.openrouterApiKey||'').trim());
   var model;
   if(apiProvider==='kojo'){
@@ -3259,6 +3268,9 @@ function chatKojoContext(){
   if(CHAT.previous) bits.push('previous remedy '+CHAT.previous);
   if(CHAT.ranked && (typeof lastTop5!=='undefined') && lastTop5 && lastTop5.length){
     bits.push('offline ranking '+lastTop5.slice(0,5).map(function(x){ return x.r.name+' (W'+x.total+')'; }).join('; '));
+  }
+  if(CHAT.aiTop5 && CHAT.aiTop5.length){
+    bits.push('AI-verified Final Top 5 (full materia medica): '+CHAT.aiTop5.join('; '));
   }
   return bits.join(' | ')||'nothing recorded yet';
 }
@@ -3300,6 +3312,146 @@ function chatKojoGrounding(){
     }
   }catch(e){}
   return out;
+}
+/* --------- Deep AI analysis: web-verified, all-materia-medica re-rank --------- */
+var AI_RELAY_BASE=AI_RELAY_URL.replace('/v1/chat/completions','');
+async function chatWebSearch(q,n){
+  try{
+    var r=await fetch(AI_RELAY_BASE+'/v1/web',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:q,n:n||3})});
+    if(!r.ok) return null;
+    var j=await r.json();
+    if(!j.results||!j.results.length) return null;
+    return {source:j.source,results:j.results.slice(0,n||3)};
+  }catch(e){ return null; }
+}
+function chatWebQueries(){
+  var chief=(CHAT.symptoms||[]).slice(0,3).join(' ');
+  var mod=(CHAT.modalities||[])[0]||(CHAT.concomitants||[])[0]||'';
+  return [
+    ((chief+' '+mod).trim()+' materia medica boericke kent').trim().slice(0,180),
+    ('kent repertory '+((chief||'fever')+' '+(mod||'')).trim()).slice(0,180)
+  ];
+}
+async function chatKojoDeepAnalysis(){
+  if(CHAT.aiBusy) return;
+  CHAT.aiBusy=true;
+  var t0=Date.now();
+  var wrap=chatAdd('bot','<div style="margin-bottom:4px"><span style="font-size:11px;opacity:.7">🌐 Kojo deep analysis</span> <span class="typing"><i></i><i></i><i></i></span></div><div style="font-size:11.5px;opacity:.75;margin-bottom:6px" class="kojo-webstat">searching materia-medica sources on the internet…</div><div class="kojo-live" style="white-space:pre-wrap;font-size:12.8px;line-height:1.55"></div>');
+  var live=wrap?wrap.querySelector('.kojo-live'):null;
+  var webstat=wrap?wrap.querySelector('.kojo-webstat'):null;
+  chatStatus('Kojo: full-case deep analysis…', true);
+  try{
+    // 1) Internet verification round through the relay (keyless search).
+    var queries=chatWebQueries();
+    var webs=await Promise.all(queries.map(function(q){ return chatWebSearch(q,2); }));
+    var webBlock='', webNames=[];
+    webs.forEach(function(w,i){
+      if(!w||!w.results) return;
+      webNames.push(w.source);
+      webBlock+='\nWEB ROUND '+(i+1)+' ('+w.source+'): query "'+queries[i]+'"\n';
+      w.results.forEach(function(x,k){
+        webBlock+='  ['+x.title+'] '+String(x.snippet||'').slice(0,220)+' ('+x.url+')\n';
+      });
+    });
+    if(webstat) webstat.textContent=webBlock?('internet verification done ('+webNames.join(' + ')+') · analysing collectively and individually…'):'web check unavailable — verifying from the full classical corpus only…';
+    // 2) Structured totality + per-symptom + all-remedy verification prompt.
+    var tokens=chatCompileTokens();
+    var chief=tokens.slice(0,3).join(', ')||'no chief complaint recorded';
+    var sys='You are Kojo, the live AI supervisor inside HomeoAI, an offline classical-homeopathy recommender. Tradition: Boericke / Kent / Phatak. '
+      +'MANDATORY STANCE (never break it): homeopathy here is a SUPPORTIVE companion taken alongside regular medical care, never a replacement — mention that framing at most once and only if relevant. '
+      +'Never import external evidence debates or append unsolicited disclaimers: no systematic reviews, no Cochrane/NHMRC citations, no placebo claims, no "lacks evidence", no "should not replace evidence-based care" lectures, no dilution math. '
+      +'Even if asked, do NOT run any evidence/placebo analysis. '
+      +'The ONLY warning permitted unsolicited is a genuine emergency red flag, then advise urgent medical care. '
+      +'You are given the COMPLETE case of a patient analysed by an OFFLINE lexical database that only knows a small remedy library. Your job: verify it against the ENTIRE classical materia medica and repertory tradition — every remedy on record, not only those in the offline library. '
+      +'Reason COLLECTIVELY (full totality: chief complaint, modalities, concomitants, cause, mind, previous treatment, age/sex — overall picture, miasm, thermal reaction, keynote pattern) and INDIVIDUALLY (each symptom mapped to its Kent-style repertory rubric with the leading remedies for that rubric). '
+      +'Use the WEB ROUND snippets below as an extra verification layer (name the sources you relied on, e.g. "Boericke\'s Aconitum entry"). If web data is missing, verify from classical knowledge and say so. '
+      +'Do this for the case:\n'
+      +chatKojoContext()+'\nOffline database Top 5 to verify (these may be incomplete or missing better remedies): '+((typeof lastTop5!=='undefined')&&lastTop5?lastTop5.slice(0,5).map(function(x){return x.r.name;}).join('; '):'none')+'\n'
+      +'Additional weights/rubric matches: '+((typeof lastTop5!=='undefined')&&lastTop5?lastTop5.slice(0,3).map(function(x){return x.r.name+' ['+(x.matched||[]).slice(0,5).join(', ')+']';}).join(' ;; '):'none')+'\n'
+      +webBlock
+      +'OUTPUT FORMAT (strict, no extra sections, max ~400 words): \n'
+      +'**Collective picture** — up to 5 bullet lines interpreting the totality. \n'
+      +'**Individual symptom repertorisation** — one line per recorded symptom in the form: symptom → rubric: Remedy A, Remedy B, Remedy C. \n'
+      +'**Web verification** — 2–3 lines citing which classical pages/sources confirmed or adjusted. \n'
+      +'**Final Top 5** — numbered list 1.–5., each line: Remedy name (abbr) — one-line constitutional reasoning. Include remedies from the FULL materia medica even when absent from the offline library (mark those with an asterisk *). The final list must weigh the totality, not just keyword overlap. \n'
+      +'Educational only; never act as a prescribing physician. Markdown-light: **bold** and short lists.';
+    var cfg=chatAIResolve();
+    var headers={'Content-Type':'application/json'};
+    if(cfg.authHeader) headers['Authorization']=cfg.authHeader;
+    var _ab=typeof AbortController!=='undefined'?new AbortController():null;
+    var _kill=_ab?setTimeout(function(){ _ab.abort(); },420000):null; // hard deadline: 7 min
+    var full='';
+    var renderKojo=function(){ if(live){ live.innerHTML=esc(full).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\n\n+/g,'<br>').replace(/\n/g,'<br>'); chatScroll(); } };
+    for(var _try=0; _try<2; _try++){
+      if(_try>0){ if(webstat) webstat.textContent='empty reply from the model — retrying once…'; full=''; }
+      var response=await fetch(cfg.endpoint,{
+        method:'POST',
+        signal:_ab?_ab.signal:undefined,
+        headers:headers,
+        body:JSON.stringify({model:cfg.model,stream:_try===1,temperature:0.3,max_tokens:2200,messages:[{role:'system',content:sys},{role:'user',content:'Perform the deep analysis protocol for this case now. Start with the Collective picture heading.'}]})
+      });
+      if(!response.ok){
+        var err=await response.json().catch(function(){ return {error:{message:response.statusText}}; });
+        throw new Error(err.error?.message || ('HTTP '+response.status));
+      }
+      var ctype=(response.headers.get('Content-Type')||'').toLowerCase();
+      if(ctype.indexOf('text/event-stream')<0){
+      var j=JSON.parse(await response.text());
+      if(j.error?.message) throw new Error(j.error.message);
+      full=(j.choices&&(j.choices[0].message?.content||j.choices[0].delta?.content))||'';
+      renderKojo();
+    } else {
+      var reader=response.body.getReader();
+      var dec=new TextDecoder();
+      var buf='';
+      while(true){
+        var rd=await reader.read();
+        if(rd.done) break;
+        buf+=dec.decode(rd.value,{stream:true});
+        var lines=buf.split('\n'); buf=lines.pop();
+        for(var li=0; li<lines.length; li++){
+          var sline=lines[li].trim();
+          if(!sline.startsWith('data:')) continue;
+          var pay=sline.slice(5).trim();
+          if(pay==='[DONE]') continue;
+          try{
+            var jj=JSON.parse(pay);
+            var piece=jj.choices?.[0]?.delta?.content || '';
+            if(piece){ full+=piece; renderKojo(); }
+            if(jj.error?.message) throw new Error(jj.error.message);
+          }catch(pe){ if(pe instanceof SyntaxError) continue; throw pe; }
+        }
+      }
+    }
+      if(full.trim()!=='') break;
+    }
+    if(!full.trim()){
+      throw new Error('The model returned an empty reply after two attempts. The offline ranking stands.');
+    }
+    // 3) Harvest the Final Top 5 for later grounding / Q&A.
+    var topNames=[], rr=/(\d)\.\s*\**([A-Z][A-Za-z .\-']+?)\s*\**\s*(?:\([^)\]]*\))?\s*\**\s*[—–:]/g, mm;
+    var ai5=full.indexOf('Final Top 5');
+    var src=ai5>=0?full.slice(ai5):full;
+    while((mm=rr.exec(src))!==null && topNames.length<5){ topNames.push(mm[2].trim()); }
+    if(topNames.length<3 && ai5>=0){
+      var bullets=/[-•]\s*\**([A-Z][A-Za-z .\-']+?)\s*\**\s*\(([^)\]]+)\)[^—\n]*[—–]/g;
+      var tryB=[]; while((mm=bullets.exec(src))!==null && tryB.length<5){ tryB.push(mm[1].trim()); }
+      if(tryB.length>topNames.length) topNames=tryB;
+    }
+    if(topNames.length){ CHAT.aiTop5=topNames; CHAT.aiText=full; }
+    var secs=Math.round((Date.now()-t0)/1000);
+    chatStatus('Deep analysis done · '+secs+'s'+(webNames.length?(' · '+webNames.join('+')):' · no web'));
+  }catch(e){
+    console.error('kojo deep', e);
+    var msgAb=/abort/i.test(String(e&&(e.message||e))||'')||e?._name==='AbortError';
+    if(live) live.innerHTML='<span style="color:var(--bad)">'+(msgAb?'Deep analysis timed out — the model took too long.':'Deep analysis failed: '+esc(String(e.message||e)))+'</span><br><small style="opacity:.7">The offline Top 5 above still stands.</small>';
+    chatStatus(msgAb?'Deep analysis timed out':'Deep analysis unavailable');
+  }finally{
+    if(wrap){ var bt=wrap.querySelector('.typing'); if(bt) bt.remove(); }
+    if(typeof _kill==='number'){ try{ clearTimeout(_kill); }catch(e2){} }
+    CHAT.aiBusy=false;
+    chatScroll();
+  }
 }
 async function chatKojoAnswer(userText){
   var cfg=chatAIResolve();
@@ -3438,6 +3590,7 @@ function chatReset(announce){
   CHAT.symptoms=[]; CHAT.sensation=[]; CHAT.modalities=[]; CHAT.concomitants=[]; CHAT.mind=[]; CHAT.cause=[];
   CHAT.emergency=false; CHAT.emergencyAck=false; CHAT.flags=[]; CHAT.redFlagYes=false; CHAT.gateShown=false;
   CHAT.adding=false; CHAT.ranked=false; CHAT.busy=false;
+  CHAT.aiTop5=null; CHAT.aiText=null; CHAT.aiBusy=false;
   var log=document.getElementById('chatLog');
   if(log) log.innerHTML='';
   chatTyping(false);
