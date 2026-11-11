@@ -1,0 +1,159 @@
+{
+  "generated": "2026-11-11",
+  "note": "Curated pointers to real repositories, libraries and commercial reference sites. URLs verified reachable on the generated date. These entries are references only; content is ingested only where a separate source row records provenance and license.",
+  "entries": [
+    {
+      "name": "Homoeopathic Materia Medica & Repertory JSON (drsamonline)",
+      "source_type": "dataset",
+      "url": "https://github.com/drsamonline/homoeopathic-materia-medica-repertory-json",
+      "license_claim": "CC0-1.0 for compiled public-domain datasets; GPL-3.0 only for repertory/repertorium-publicum-2008/ (not imported here)",
+      "review_status": "verified 2026-11-11; license per upstream README",
+      "relevance": "Primary external source for the imported public-domain repertory, materia medica and treatise JSON (72 books, catalog.json-driven).",
+      "source": "drsamonline Homoeopathic MM & Repertory JSON"
+    },
+    {
+      "name": "OOREP — Open Online Repertory",
+      "source_type": "source_code",
+      "url": "https://github.com/nondeterministic/oorep",
+      "license_claim": "GPL-3.0",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Open-source Scala repertory platform (oorep.com); source of the OOREP Publicum data already in this database.",
+      "source": "OOREP Publicum repertory"
+    },
+    {
+      "name": "Kent Repertory Explorer (su4532)",
+      "source_type": "dataset",
+      "url": "https://github.com/su4532/kent-repertory-explorer",
+      "license_claim": "MIT for code; NOTICE covers data provenance",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Independent OCR edition of Kent's Repertory (74,513 rubric nodes, 507,179 remedy occurrences); useful as a comparison source.",
+      "source": null
+    },
+    {
+      "name": "OOREP MCP server (Dhi13man)",
+      "source_type": "tool",
+      "url": "https://github.com/Dhi13man/oorep-mcp",
+      "license_claim": "MIT",
+      "review_status": "verified 2026-11-11",
+      "relevance": "MCP server exposing OOREP repertory and materia medica queries to AI assistants.",
+      "source": null
+    },
+    {
+      "name": "OpenHomeopath",
+      "source_type": "software",
+      "url": "https://github.com/henri-hulski/OpenHomeopath",
+      "license_claim": "AGPL-3.0 (code); docs GFDL-1.3",
+      "review_status": "verified 2026-11-11",
+      "relevance": "PHP repertorization application with Kent, Boenninghausen, Boger and Repertorium Publicum datasets (openhomeo.info).",
+      "source": null
+    },
+    {
+      "name": "Homeopathy Repertory and Knowledge Database (hydrogen2oxygen)",
+      "source_type": "dataset",
+      "url": "https://github.com/hydrogen2oxygen/repertory",
+      "license_claim": "MIT",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Open repertory/knowledge database project; candidate comparison source.",
+      "source": null
+    },
+    {
+      "name": "Kent Repertory ETL (aadjones)",
+      "source_type": "dataset",
+      "url": "https://github.com/aadjones/kent_repertory_etl",
+      "license_claim": "MIT",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Scraping/ETL of Kent's repertory into a relational database; method reference for Kent data extraction.",
+      "source": null
+    },
+    {
+      "name": "Homeoint",
+      "source_type": "library",
+      "url": "http://www.homeoint.org/",
+      "license_claim": "public-domain texts asserted by site; verify per text before reuse",
+      "review_status": "verified 2026-11-11 (HTTP; HTTPS certificate mismatch)",
+      "relevance": "Long-running online library of classical materia medica, repertories and provings.",
+      "source": null
+    },
+    {
+      "name": "ABC Homeopathy",
+      "source_type": "library",
+      "url": "https://www.abchomeopathy.com/",
+      "license_claim": "site content; per-record attribution retained in this database",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Remedy reference and repertorization site; its remedy index is already imported as data/abc_index.js.",
+      "source": "ABC Homeopathy remedy index"
+    },
+    {
+      "name": "Remedia Homeopathy shop",
+      "source_type": "catalog",
+      "url": "https://remedia-homeopathy.com/",
+      "license_claim": "catalog data; reuse rights not declared — verify before redistribution",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Austrian Remedia catalog; source of the imported 7,459-remedy catalog with families, synonyms, potencies and prices.",
+      "source": "Remedia Homeopathy Catalog"
+    },
+    {
+      "name": "Homeopathy Library",
+      "source_type": "library",
+      "url": "https://homeopathylibrary.com/",
+      "license_claim": "site content; verify per text before reuse",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Online homeopathy book library; discovery source for further public-domain editions.",
+      "source": null
+    },
+    {
+      "name": "Materia Medica info",
+      "source_type": "library",
+      "url": "https://materiamedica.info/",
+      "license_claim": "site content; verify per text before reuse",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Materia medica reference site; cross-checking source for remedy texts.",
+      "source": null
+    },
+    {
+      "name": "Homeopathy Software directory",
+      "source_type": "directory",
+      "url": "https://homeopathy.software/",
+      "license_claim": "site content; not ingested",
+      "review_status": "site exists; automated check returned 503 (bot protection) on 2026-11-11",
+      "relevance": "Software reviews and comparisons; pointer for commercial repertory tools.",
+      "source": null
+    },
+    {
+      "name": "Similia — Australian Journal of Homeopathy",
+      "source_type": "journal",
+      "url": "https://similia.com.au/",
+      "license_claim": "journal content; check per-article rights",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Peer-reviewed homeopathic journal with open archives; literature discovery.",
+      "source": null
+    },
+    {
+      "name": "Internet Archive",
+      "source_type": "archive",
+      "url": "https://archive.org/",
+      "license_claim": "varies per item; many scans are public domain",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Source scans for the imported public-domain editions (see upstream catalog candidate scans).",
+      "source": null
+    },
+    {
+      "name": "RadarOpus (Synthesis repertory)",
+      "source_type": "commercial_software",
+      "url": "https://www.radaropus.com/",
+      "license_claim": "commercial; Synthesis repertory © F. Schroyens — not ingested",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Commercial repertory software bundling Synthesis; comparison point for coverage.",
+      "source": null
+    },
+    {
+      "name": "Complete Dynamics (Complete Repertory)",
+      "source_type": "commercial_software",
+      "url": "https://www.completedynamics.com/",
+      "license_claim": "commercial; Complete Repertory © Roger van Zandvoort — not ingested",
+      "review_status": "verified 2026-11-11",
+      "relevance": "Commercial repertory software built on the Complete Repertory by Roger van Zandvoort.",
+      "source": null
+    }
+  ]
+}
