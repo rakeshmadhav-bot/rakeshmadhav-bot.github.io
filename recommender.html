@@ -3246,13 +3246,21 @@ async function chatAnswer(text){
 }
 
 /* ---------------- live AI (Kojo) — answers what the interview can't ---------------- */
-var CHAT_Q_RE=/[?؟]|\b(why|how|when|where|tell me)\b/i;
+var CHAT_Q_RE=/[?؟]|\b(why|how|when|where|tell me|what about|should i|can i|could i|do i|is it|which one|any other)\b/i;
 function chatLooksQuestion(t){
   var s=String(t||'').trim();
   if(s.length<2 || chatIsSkip(s) || s.length>400) return false;
   var low=s.toLowerCase();
   // Definition / meta questions get Kojo at any stage.
   if(/^(what is|who is|what does|what are|meaning of|kojo|explain)\b/.test(low)) return true;
+  // After ranking, conversational follow-ups (feedback, "didn't work", remedy
+  // discussion, comparisons) are questions for Kojo — not new symptoms to
+  // re-rank — unless they are explicit chip commands handled by chatAnswer.
+  if(CHAT.ranked || (CHAT_STEPS[CHAT.idx]||'')==='results'){
+    if(/show remedies anyway|anyway \(educational\)|^add another|^refine|^full reasoning|^new consultation/i.test(s)) return false;
+    if(CHAT_Q_RE.test(s)) return true;
+    if(/\b(didn'?t work|did not work|not work(ing|ed)?|no (improv|relief|change|effect|result)|not better|got worse|worse after|made (it|me) worse|no help|did nothing|i (tried|took|gave|used)|was given|already (took|tried|given)|instead|but it|however)\b/i.test(low)) return true;
+  }
   // During the base-intake steps, plain question words are usually the patient
   // describing their own complaint ("how painful is it", "why do I cough at
   // night") — let the extractor try those first; if it fails, the step handlers
