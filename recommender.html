@@ -311,13 +311,18 @@ thead th{font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 </div>
 
 <section id="chatView" class="chat-shell" role="main" aria-label="Chat consultation">
-  <div class="card chat-card">
+  <div class="card chat-card" style="position:relative">
     <div class="card-head">
       <span><span class="step">💬</span> &nbsp;Symptom consultation</span>
       <span class="chat-head-actions">
         <span class="chat-status" id="chatStatus" aria-live="polite">Ready</span>
+        <button class="btn-ghost" id="chatHistBtn" onclick="chatHistoryToggle()" style="min-height:32px;font-size:12px">🕘 Saved</button>
         <button class="btn-ghost" onclick="chatReset(true)" style="min-height:32px;font-size:12px">New chat</button>
       </span>
+    </div>
+    <div id="chatHistPanel" style="display:none;position:absolute;top:56px;right:12px;z-index:30;max-width:340px;width:calc(100% - 24px);max-height:55%;overflow:auto;background:var(--bg,#fff);border:1px solid var(--muted,#ccc);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px">🕘 Saved chats</b><span style="flex:1"></span><button type="button" class="btn-ghost" onclick="chatHistoryToggle()" style="min-height:28px;font-size:12px">✕</button></div>
+      <div id="chatHistList"></div>
     </div>
     <div class="chat-summary" id="chatSummary" aria-label="Case summary"></div>
     <div class="chat-log" id="chatLog" role="log" aria-live="polite" aria-label="Conversation"></div>
@@ -481,12 +486,15 @@ thead th{font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 <script src="data/oorep_index.js"></script>
 <script src="data/oorep_rag.js"></script>
 <script src="data/boericke_full.js"></script>
+<script src="data/db_rag.js"></script>
+<script src="data/db_mm.js"></script>
+<script src="data/db_candidates.js"></script>
 <script>
 let DB=[];
 let ABC=[];
 let TAUTOPATHY=(typeof window!=='undefined'&&window.TAUTOPATHY_DATA)?window.TAUTOPATHY_DATA:null;
 function loadDB(){
-  if(window.EMBED) DB=window.EMBED;
+  if(window.EMBED) DB=window.EMBED.concat(window.DB_CANDIDATES||[]);  // + SQLite-only remedies so all 1,183 abbreviated remedies rank
   if(window.ABC_INDEX) ABC=window.ABC_INDEX;
   if(window.TAUTOPATHY_DATA) TAUTOPATHY=window.TAUTOPATHY_DATA;
   try{
@@ -511,9 +519,9 @@ function loadDB(){
     if(window.SPEC_REPS) window.SPEC_REPS=window.SPEC_REPS.repertories||[];
     if(window.CURED_CASES) window.CURED_CASES=window.CURED_CASES.cases||[];
   }
-  console.log('DB', DB.length, 'ABC', ABC.length, 'TAUTOPATHY', TAUTOPATHY?TAUTOPATHY.agents.length:0, 'OOREP', window.OOREP?window.OOREP.meta.remedies:0, 'BOERICKE_FULL', Object.keys(window.BOERICKE_MAP||{}).length);
+  console.log('DB', DB.length, 'ABC', ABC.length, 'TAUTOPATHY', TAUTOPATHY?TAUTOPATHY.agents.length:0, 'OOREP', window.OOREP?window.OOREP.meta.remedies:0, 'BOERICKE_FULL', Object.keys(window.BOERICKE_MAP||{}).length, 'DB_RAG', window.DB_RAG?window.DB_RAG.rubrics.length:0, 'DB_MM', Object.keys(window.DB_MM||{}).length, 'DB_CANDIDATES', (window.DB_CANDIDATES||[]).length);
   const st=document.getElementById('dbStatus');
-  if(st) st.textContent = `Boericke MM: ${Object.keys(window.BOERICKE_MAP||{}).length} full texts + DB: ${DB.length} detailed + ABC: ${ABC.length} remedies + Tautopathy: ${TAUTOPATHY?TAUTOPATHY.agents.length:0} agents + OOREP: ${window.OOREP?window.OOREP.meta.remedies:0} repertory remedies`;
+  if(st) st.textContent = `Boericke MM: ${Object.keys(window.BOERICKE_MAP||{}).length} full texts + DB: ${DB.length} detailed (+${(window.DB_CANDIDATES||[]).length} SQLite-only) + ABC: ${ABC.length} remedies + Tautopathy: ${TAUTOPATHY?TAUTOPATHY.agents.length:0} agents + OOREP: ${window.OOREP?window.OOREP.meta.remedies:0} repertory remedies + SQLite RAG: ${window.DB_RAG?window.DB_RAG.rubrics.length:0} ext rubrics / ${Object.keys(window.DB_MM||{}).length} MM`;
 }
 loadDB();
 
@@ -692,7 +700,11 @@ function mmBlockFor(r){
   const k=String(r.abbr||'').toLowerCase().replace(/[^a-z0-9]/g,'');
   const nm=String(r.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
   const b=(window.BOERICKE_MAP||{})[k]||(window.BOERICKE_BY_NAME||{})[nm];
-  if(!b) return '';
+  if(!b){
+    const d=String((window.DB_MM||{})[k]||'');  // SQLite-DB materia medica when no Boericke text exists
+    if(!d) return '';
+    return `<details style="margin-top:8px;border-top:1px dashed var(--border);padding-top:6px"><summary style="cursor:pointer;font-weight:700;font-size:12px">📖 Materia Medica (offline DB) — ${esc(r.name)} (${esc(r.abbr)})</summary><div style="font-size:12px;line-height:1.55;white-space:pre-wrap;margin-top:6px;max-height:360px;overflow:auto;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px">${esc(d.slice(0,7000))}</div></details>`;
+  }
   const txt=String(b.text||'').slice(0,7000);
   const rel=String(b.relationship||'');
   return `<details style="margin-top:8px;border-top:1px dashed var(--border);padding-top:6px"><summary style="cursor:pointer;font-weight:700;font-size:12px">📖 Full Boericke Materia Medica — ${esc(b.name||r.name)} (${esc(b.abbr||r.abbr)})</summary><div style="font-size:12px;line-height:1.55;white-space:pre-wrap;margin-top:6px;max-height:360px;overflow:auto;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px">${esc(txt)}${rel?`\n\nRelationship:\n${esc(rel)}`:''}</div></details>`;
@@ -1689,7 +1701,7 @@ function recommend(){
   const aiDiv=document.getElementById('aiExplain');
   aiDiv.style.display='block';
   aiDiv.innerHTML=`<b>AI understood:</b> "${symRaw}" → <i>${expanded.slice(0,260)}${expanded.length>260?'...':''}</i> • <b>ABC repertorisation:</b> each symptom = one rubric (12 base, +3 K0 keynote 1561, +2 G1, +1 G2 text${boostSet.size?`, boosted ×${N} on ${[...boostSet].map(i=>`"${keywords[i]||''}"`).join(', ')}`:''}) • Age ${group} + Gender ${gender||'-'} (tie-break only)`
-    + (rag.hits.length ? `<br>📚 <b>RAG full-DB (${rag.hits.length} rubrics, publicum GPL-3.0):</b> ` + rag.hits.slice(0,5).map(h=>`${h.txt} <span style="color:var(--muted)">[${h.rems.split(',').slice(0,6).join(' ')}]</span>`).join(' • ') : `<br>📚 RAG: no publicum rubric hit`);
+    + (rag.hits.length ? `<br>📚 <b>RAG full-DB (${rag.hits.length} rubrics, OOREP publicum + ${window.DB_RAG?window.DB_RAG.rubrics.length:0} ext-repertory):</b> ` + rag.hits.slice(0,5).map(h=>`${h.txt} <span style="color:var(--muted)">[${h.rems.split(',').slice(0,6).join(' ')}]</span>`).join(' • ') : `<br>📚 RAG: no rubric hit`);
   // legacy flat expansion (kept for compatibility; scoring uses per-symptom groups above)
   let expandedKeywords=[];
   keywords.forEach(kw=>{
@@ -1711,7 +1723,12 @@ function recommend(){
   // BM25-lite over window.OOREP_RAG.rubrics ([text, "Abbr:w,..."]). Offline, file:// safe.
   function oorepRetrieve(groups, topK){
     topK = topK || 15;
-    const RAG = (window.OOREP_RAG && window.OOREP_RAG.rubrics) || [];
+    const ragBase = (window.OOREP_RAG && window.OOREP_RAG.rubrics) || [];
+    const ragExt = (window.DB_RAG && window.DB_RAG.rubrics) || [];
+    // merged corpus is cached; key on lengths so a late-loading DB_RAG is picked up
+    const ragKey = ragBase.length + ':' + ragExt.length;
+    if(!window._RAG_ALL || window._RAG_ALL.key !== ragKey) window._RAG_ALL = {key: ragKey, v: ragBase.concat(ragExt)};
+    const RAG = window._RAG_ALL.v;
     if(!RAG.length || !groups.length) return {hits:[], bonus:{}};
     const toks = groups => groups.flatMap(g=>[g.orig, ...(g.syns||[])].join(' ').toLowerCase().split(/[^a-z0-9-]+/)).filter(w=>w.length>=3);
     const qset = new Set(toks(groups));
@@ -1751,7 +1768,8 @@ function recommend(){
     const bfRec = (window.BOERICKE_MAP||{})[onorm] || null;
     const bfTxt = bfRec ? String(bfRec.text||'').slice(0,8000) : '';
     const bfRel = bfRec ? String(bfRec.relationship||'') : '';
-    const g2txt = [r.boericke?.mind, r.boericke?.generals, r.boericke?.particulars, r.boericke?.modalities, r.kent, r.phatak, orub, bfTxt].join(' ');
+    const dbMM = (window.DB_MM && window.DB_MM[onorm]) || '';  // materia medica from homeopathy.sqlite (capped 6000 like bfTxt)
+    const g2txt = [r.boericke?.mind, r.boericke?.generals, r.boericke?.particulars, r.boericke?.modalities, r.kent, r.phatak, orub, bfTxt, dbMM].join(' ');
     const haytxt = [g1txt, g2txt, k0txt, r.kingdom, r.family, bfRel].join(' ');
     const z = zonesOf(g1txt, g2txt, haytxt, r, k0txt);
     const s = abcScoreGroups(groups, z.g1, z.g1w, z.g2, z.g2w, z.hay, z.hayw, z.k0, z.k0w);
@@ -1793,8 +1811,9 @@ function recommend(){
     const aName = String(a.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
     const bfa = (window.BOERICKE_MAP||{})[aKey] || (window.BOERICKE_BY_NAME||{})[aName] || null;
     const bfTxtA = bfa ? String(bfa.text||'').slice(0,8000) : '';
-    const haytxt = [g1txt, g2txt, (a.potencies||[]).join(' '), bfTxtA, bfa?String(bfa.relationship||''):''].join(' ');
-    const z = zonesOf(g1txt, [g2txt, bfTxtA].join(' '), haytxt, a, '');
+    const dbMMA = (window.DB_MM && window.DB_MM[aKey]) || '';  // homeopathy.sqlite materia medica
+    const haytxt = [g1txt, g2txt, (a.potencies||[]).join(' '), bfTxtA, dbMMA, bfa?String(bfa.relationship||''):''].join(' ');
+    const z = zonesOf(g1txt, [g2txt, bfTxtA, dbMMA].join(' '), haytxt, a, '');
     const s = abcScoreGroups(groups, z.g1, z.g1w, z.g2, z.g2w, z.hay, z.hayw, '', []);
     const f = ageGenderFit(a.abbr||'', a.name||'', group, gender);
     const ragBonusA = Math.min(12, Math.round((rag.bonus[ragNorm(a.abbr)]||0)/4));
@@ -1858,7 +1877,12 @@ function recommend(){
   function essenceOf(x){
     if(x.source==='DB'){
       const m=String(x.r.phatak||'').match(/ESSENCE:\s*([^\n.]+)/i);
-      return (((m?m[1]:'')+' '+(x.r.keynotes||[]).join(' ')+' '+(x.r.keySymptoms||[]).join(' '))).toLowerCase();
+      let e=(((m?m[1]:'')+' '+(x.r.keynotes||[]).join(' ')+' '+(x.r.keySymptoms||[]).join(' '))).toLowerCase().trim();
+      if(!e){ // SQLite-catalog candidates carry no keynotes — verify from their materia medica instead
+        const k=String(x.r.abbr||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+        e=String((window.DB_MM&&window.DB_MM[k])||'').slice(0,600).toLowerCase();
+      }
+      return e;
     }
     const a=x.r._abc||{};
     return ((a.hpus||'')+' '+(a.common_symptoms||[]).join(' ')+' '+String(a.general||'').slice(0,300)).toLowerCase();
@@ -2046,7 +2070,7 @@ function recommend(){
     const isFinal = window._finalPick && window._finalPick.x.r.name===r.name && window._finalPick.x.r.abbr===r.abbr;
     const isABC = x.source==='ABC' && r._abc;
     const abc = isABC ? r._abc : null;
-    const srcBadge = x.source==='ABC' ? '<span class="rtag" style="border-color:var(--accent);color:var(--accent2)">ABC 763</span>' : '<span class="rtag">DB 767 + K1561 + R803</span>';
+    const srcBadge = x.source==='ABC' ? '<span class="rtag" style="border-color:var(--accent);color:var(--accent2)">ABC 763</span>' : `<span class="rtag">DB ${DB.length} + K1561 + R803</span>`;
     const expBadge = ((x.expTags&&x.expTags.length)||(x.specTags&&x.specTags.length))?`<span class="rtag" style="border-color:#7c3aed;color:#7c3aed" title="Expert rules + specialized repertories">${[...(x.expTags||[]),...(x.specTags||[])].join('/')}</span>`:'';
     const av = stockStatus(r.name, r.abbr, ((document.getElementById('potency')||{}).value||''));
     const avBadge = av.state==='in' ? `<span class="rtag" style="border-color:var(--ok);color:var(--ok)">In stock • ${av.boxes.join(' + ')}</span>` : av.state==='other' ? `<span class="rtag" style="border-color:var(--warn);color:var(--warn)" title="${av.items.join(', ')}">In stock: ${av.items.slice(0,2).join(', ')}</span>` : `<span class="rtag" style="border-color:var(--bad);color:var(--bad)">Not in stock</span>`;
@@ -2537,6 +2561,7 @@ function chatAdd(role, html){
   wrap.appendChild(av); wrap.appendChild(bubble);
   log.appendChild(wrap);
   chatScroll();
+  try{ chatPersist(); }catch(e){}
   return wrap;
 }
 function chatBot(html){ return chatAdd('bot', html); }
@@ -3450,6 +3475,7 @@ async function chatKojoDeepAnalysis(){
     if(wrap){ var bt=wrap.querySelector('.typing'); if(bt) bt.remove(); }
     if(typeof _kill==='number'){ try{ clearTimeout(_kill); }catch(e2){} }
     CHAT.aiBusy=false;
+    try{ chatPersist(); }catch(e){}
     chatScroll();
   }
 }
@@ -3585,12 +3611,112 @@ function chatSubmit(ev){
   input.value=''; chatAutosize();
   chatSend(t);
 }
+/* ---------------- saved chats: auto-save, continue, delete ---------------- */
+var CHAT_HISTORY_KEY='homeo_chat_history';
+function chatHistoryAll(){ try{ var a=JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function chatHistoryWrite(arr){ try{ localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(arr)); }catch(e){ console.warn('chat history save failed', e); } }
+var _chatPersistTimer=null;
+function chatPersistNow(){
+  if(!CHAT.sessionId) CHAT.sessionId='c'+Date.now()+(Math.random()*1e6|0);
+  var log=document.getElementById('chatLog');
+  var bubbles=log?log.querySelectorAll('.msg').length:0;
+  if(bubbles<3 && !CHAT.symptoms.length && !CHAT.ranked) return; // skip empty welcomes
+  var rec={
+    id:CHAT.sessionId, savedAt:Date.now(), step:CHAT_STEPS[CHAT.idx]||'name',
+    state:{ idx:CHAT.idx, name:CHAT.name, age:CHAT.age, gender:CHAT.gender, duration:CHAT.duration, previous:CHAT.previous,
+      symptoms:CHAT.symptoms.slice(), sensation:CHAT.sensation.slice(), modalities:CHAT.modalities.slice(),
+      concomitants:CHAT.concomitants.slice(), mind:CHAT.mind.slice(), cause:CHAT.cause.slice(),
+      emergency:CHAT.emergency, emergencyAck:CHAT.emergencyAck, flags:CHAT.flags.slice(), redFlagYes:CHAT.redFlagYes,
+      gateShown:CHAT.gateShown, adding:CHAT.adding, ranked:CHAT.ranked,
+      aiTop5:(CHAT.aiTop5||[]).slice(), aiText:String(CHAT.aiText||'') },
+    log:(log?log.innerHTML:'')
+  };
+  var arr=chatHistoryAll(), at=-1;
+  for(var i=0;i<arr.length;i++){ if(arr[i].id===rec.id){ at=i; break; } }
+  if(at>=0) arr[at]=rec; else arr.unshift(rec);
+  arr.sort(function(a,b){ return b.savedAt-a.savedAt; });
+  if(arr.length>30) arr.length=30; // shortcut: hard cap 30 chats, drop oldest when full
+  chatHistoryWrite(arr);
+  chatHistoryRefreshBadge();
+}
+function chatPersist(){ if(_chatPersistTimer) clearTimeout(_chatPersistTimer); _chatPersistTimer=setTimeout(chatPersistNow,600); }
+function chatHistoryToggle(){
+  var p=document.getElementById('chatHistPanel'); if(!p) return;
+  if(p.style.display==='none'){ chatHistoryRender(); p.style.display=''; } else { p.style.display='none'; }
+}
+function chatHistoryRefreshBadge(){
+  var b=document.getElementById('chatHistBtn'); if(!b) return;
+  var n=chatHistoryAll().length;
+  b.textContent=n?('🕘 Saved ('+n+')'):'🕘 Saved';
+}
+function chatHistoryRender(){
+  var list=document.getElementById('chatHistList'); if(!list) return;
+  var arr=chatHistoryAll();
+  if(!arr.length){ list.innerHTML='<div style="opacity:.7;padding:10px 4px;font-size:12.5px">No saved chats yet.</div>'; return; }
+  list.innerHTML='';
+  arr.forEach(function(r){
+    var st=r.state||{};
+    var d=new Date(r.savedAt||Date.now());
+    var title=(st.name?esc(st.name):'Chat')+((st.symptoms||[]).length?(' — '+st.symptoms.slice(0,2).join(', ')):'');
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:6px;padding:7px 4px;border-top:1px solid rgba(128,128,128,.18)';
+    var info=document.createElement('div');
+    info.style.cssText='flex:1;min-width:0';
+    info.innerHTML='<div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px">'+esc(title)+'</div>'
+      +'<div style="font-size:11px;opacity:.65">'+esc(d.toLocaleString())+' · step: '+esc(r.step||'name')+'</div>';
+    var cont=document.createElement('button'); cont.type='button'; cont.className='btn-ghost'; cont.textContent='Continue'; cont.style.cssText='min-height:30px;font-size:12px';
+    cont.onclick=function(){ chatHistoryContinue(r.id); };
+    var del=document.createElement('button'); del.type='button'; del.className='btn-ghost'; del.textContent='Delete'; del.style.cssText='min-height:30px;font-size:12px';
+    del.onclick=function(){ if(confirm('Delete this saved chat?')) chatHistoryDelete(r.id); };
+    row.appendChild(info); row.appendChild(cont); row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+function chatHistoryContinue(id){
+  var rec=null; chatHistoryAll().forEach(function(r){ if(r.id===id) rec=r; });
+  if(!rec||!rec.state) return;
+  var st=rec.state;
+  CHAT.sessionId=rec.id;
+  CHAT.idx=st.idx||0; CHAT.name=st.name||''; CHAT.age=st.age||''; CHAT.gender=st.gender||''; CHAT.duration=st.duration||''; CHAT.previous=st.previous||'';
+  CHAT.symptoms=(st.symptoms||[]).slice(); CHAT.sensation=(st.sensation||[]).slice(); CHAT.modalities=(st.modalities||[]).slice();
+  CHAT.concomitants=(st.concomitants||[]).slice(); CHAT.mind=(st.mind||[]).slice(); CHAT.cause=(st.cause||[]).slice();
+  CHAT.emergency=!!st.emergency; CHAT.emergencyAck=!!st.emergencyAck; CHAT.flags=(st.flags||[]).slice(); CHAT.redFlagYes=!!st.redFlagYes;
+  CHAT.gateShown=!!st.gateShown; CHAT.adding=!!st.adding; CHAT.ranked=!!st.ranked;
+  CHAT.aiTop5=(st.aiTop5&&st.aiTop5.length)?st.aiTop5.slice():null; CHAT.aiText=st.aiText||null; CHAT.aiBusy=false; CHAT.busy=false;
+  var log=document.getElementById('chatLog');
+  if(log) log.innerHTML=rec.log||'';
+  chatTyping(false); chatSetBusy(false);
+  // Recompute the offline ranking silently so Full reasoning / AI grounding
+  // still work after restore (the log itself is already rendered).
+  if(CHAT.ranked && CHAT.symptoms.length){
+    try{
+      var tokens=chatCompileTokens();
+      var pname=document.getElementById('pname'), ageEl=document.getElementById('age'), genderEl=document.getElementById('gender'), symEl=document.getElementById('symptoms');
+      if(pname&&ageEl&&genderEl&&symEl){
+        pname.value=CHAT.name||'Chat patient'; ageEl.value=CHAT.age; genderEl.value=CHAT.gender||''; symEl.value=tokens.join(', ');
+        recommend();
+      }
+    }catch(e){ console.warn('re-rank on restore failed', e); }
+  }
+  renderChatSummary();
+  chatSetChips(CHAT_CHIPS[CHAT_STEPS[CHAT.idx]]||[]);
+  chatStatus(CHAT.ranked?'Restored — ranked case':'Restored — '+CHAT_STEPS[CHAT.idx]+' step');
+  chatScroll();
+  chatHistoryToggle();
+  var input=document.getElementById('chatInput'); if(input) input.focus();
+}
+function chatHistoryDelete(id){
+  chatHistoryWrite(chatHistoryAll().filter(function(r){ return r.id!==id; }));
+  if(CHAT.sessionId===id) CHAT.sessionId=null; // don't resurrect a deleted chat on the next message
+  chatHistoryRender(); chatHistoryRefreshBadge();
+}
 function chatReset(announce){
   CHAT.idx=0; CHAT.name=''; CHAT.age=''; CHAT.gender=''; CHAT.duration=''; CHAT.previous='';
   CHAT.symptoms=[]; CHAT.sensation=[]; CHAT.modalities=[]; CHAT.concomitants=[]; CHAT.mind=[]; CHAT.cause=[];
   CHAT.emergency=false; CHAT.emergencyAck=false; CHAT.flags=[]; CHAT.redFlagYes=false; CHAT.gateShown=false;
   CHAT.adding=false; CHAT.ranked=false; CHAT.busy=false;
   CHAT.aiTop5=null; CHAT.aiText=null; CHAT.aiBusy=false;
+  CHAT.sessionId='c'+Date.now()+(Math.random()*1e6|0);
   var log=document.getElementById('chatLog');
   if(log) log.innerHTML='';
   chatTyping(false);
@@ -3666,6 +3792,7 @@ var chatStatusRestoreTimer=null;
   try{ saved=localStorage.getItem('homeo_view')||'chat'; }catch(e){}
   setView(saved);
   chatReset(true);
+  chatHistoryRefreshBadge();
 })();
 </script>
 </body>

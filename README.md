@@ -9,8 +9,28 @@ Static site (no build step, no server code) hosted on GitHub Pages.
 | `/library.html` | Searchable browser view of the local SQLite database export |
 | `/database/homeopathy.sqlite` | Structured SQLite source database (used to generate the browser search export) |
 | `/data/homeopathy_search.json.gz` | Compressed read-only search index loaded by the static site |
-| `/data/` | JS/JSON indexes the recommender loads (~19 MB) |
+| `/data/` | JS/JSON indexes the recommender loads (~45 MB) |
+| `/data/db_rag.js`, `/data/db_mm.js`, `/data/db_candidates.js` | Generated from the SQLite DB by `scripts/build_recommender_db.py` (run automatically after each DB build): 238,160 ext-repertory rubrics for RAG retrieval, materia medica text for all 910 abbreviated remedies that have any, and the 49 SQLite-only remedy records that make **all 1,183 abbreviated remedies rankable** in the recommender (767 already in `embed.js`, 367 covered by `abc_index.js`, 49 added) |
 | `/data/boericke_full.js` | Full Boericke Materia Medica, 689 remedies — merged from `HomeoDBs/boericke-alt` + `boericke-688`, scored into every rubric and shown as an expandable panel on each result |
+
+### Database coverage
+
+`database/homeopathy.sqlite` is rebuilt by `scripts/build_homeopathy_db.py` from local
+inputs only (nothing is scraped at build time):
+
+| Input | What is imported |
+|-------|------------------|
+| `data/*.js`, `data/*.json` | Original project datasets (Boericke, ABC index, OOREP, cases, etc.) |
+| `../remedia-homeopathy-database.json` | Remedia shop catalog — 7,459 remedies (families, synonyms, potencies, price ranges), 686 products, 106 categories |
+| `../ext_hommr_json/` | [drsamonline JSON dataset](https://github.com/drsamonline/homoeopathic-materia-medica-repertory-json) (CC0-1.0) — 72 public-domain books: repertories (Kent, Knerr, Boenninghausen, Lippe, Gentry, …), materia medica (Clarke, Kent, Hering, Allen, …) and treatises (Organon, Kent's lectures, …), driven by its `catalog.json` |
+| `data/repository_catalog.json` | 17 verified repository/source pointers in `source_catalog` (GitHub repos, libraries, commercial tools — URLs checked, none ingested) |
+
+Current counts: **7,845 remedies · 356,363 rubrics · 1,105,379 rubric–remedy links ·
+5,239 materia medica rows · 6,916 reference documents · 85 sources · 362,923 search
+records** (≈30 MB `homeopathy_search.json.gz`). Rubric texts from the external
+repertories are stored chapter-prefixed (`Mind — ANGER…`); remedy links resolve by
+exact name first, then a conservative fuzzy match (same first character, ratio ≥ 0.85),
+and only curated-vocabulary names may create new remedy rows — OCR debris is skipped.
 
 ## Chat consultation
 
@@ -71,6 +91,17 @@ Immediately after the offline Top 5 appears, the chat automatically runs a
 
 The offline ranking always remains displayed and stands as fallback if the
 AI phase fails; failures never break the interview flow.
+
+### Saved chats (continue / delete)
+
+Every chat consultation is auto-saved to the browser (`homeo_chat_history`,
+last 30 chats): the full transcript plus the interview state (step, symptoms,
+modalities, flags, AI Top 5). The **🕘 Saved** button in the chat header lists
+them — **Continue** restores the conversation exactly where it left off
+(including recomputing the offline ranking so Full reasoning still works, and
+keeping the AI-verified Top 5 for follow-up questions), **Delete** removes a
+chat permanently. Continuing a restored chat updates the same entry rather
+than creating duplicates. Storage is local to the browser only.
 
 ## AI settings
 

@@ -8,8 +8,8 @@
       "url": "https://github.com/drsamonline/homoeopathic-materia-medica-repertory-json",
       "license_claim": "CC0-1.0 for compiled public-domain datasets; GPL-3.0 only for repertory/repertorium-publicum-2008/ (not imported here)",
       "review_status": "verified 2026-11-11; license per upstream README",
-      "relevance": "Primary external source for the imported public-domain repertory, materia medica and treatise JSON (72 books, catalog.json-driven).",
-      "source": "drsamonline Homoeopathic MM & Repertory JSON"
+      "relevance": "Primary external source for the imported public-domain repertory, materia medica and treatise JSON (72 books, catalog.json-driven); each book has its own row in sources.",
+      "source": null
     },
     {
       "name": "OOREP — Open Online Repertory",

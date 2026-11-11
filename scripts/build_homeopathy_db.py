@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Build an attribution-aware SQLite index from the project's existing HomeoAI datasets.
+"""Build an attribution-aware SQLite index from local datasets.
 
-This imports only files already present in ../data. It does not scrape or copy online
-content; source_catalog rows are references for future, license-reviewed ingestion.
+Inputs are local files only: ../data (project datasets), plus the sibling Remedia
+catalog JSON and the sibling drsamonline JSON checkout when they are present.
+Nothing is scraped; source_catalog rows are verified pointers, not ingested content.
 """
 from __future__ import annotations
 
 import argparse
+import difflib
 import gzip
 import json
 import re
@@ -78,7 +80,8 @@ CREATE TABLE IF NOT EXISTS rubric_remedies (
 CREATE TABLE IF NOT EXISTS reference_documents (
   id INTEGER PRIMARY KEY, source_id INTEGER NOT NULL REFERENCES sources(id),
   document_type TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '',
-  url TEXT, metadata JSON NOT NULL DEFAULT '{}'
+  url TEXT, metadata JSON NOT NULL DEFAULT '{}',
+  remedy_id INTEGER REFERENCES remedies(id)
 );
 CREATE TABLE IF NOT EXISTS source_catalog (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, source_type TEXT, url TEXT,
@@ -124,6 +127,7 @@ def ensure_source(conn: sqlite3.Connection, name: str, filename: str, attributio
 
 
 _REMEDY_CACHE: dict[str, int] = {}
+_FUZZY_CACHE: dict[str, int | None] = {}
 
 
 def ensure_remedy(conn: sqlite3.Connection, name: Any, abbr: Any = "", common: Any = "",
@@ -199,17 +203,454 @@ def add_mm(conn: sqlite3.Connection, source_id: int, remedy_id: int | None, titl
                              (remedy_id, source_id, direction, m.group(1).strip(" .;,"), clause.strip()))
 
 
+REPO_JSON_URL = "https://github.com/drsamonline/homoeopathic-materia-medica-repertory-json"
+EXT_LICENSE_NOTE = "CC0-1.0 per upstream README; repertorium-publicum-2008 (GPL-3.0) not imported"
+FUZZY_CUTOFF = 0.85
+
+
+def build_alias(conn: sqlite3.Connection) -> dict[str, int]:
+    """Map every normalized name/abbreviation of known remedies to its id."""
+    alias: dict[str, int] = {}
+    for rid, key, name, abbr, common in conn.execute(
+        "SELECT id, normalized_key, canonical_name, abbreviation, common_name FROM remedies"
+    ):
+        for value in (key, name, abbr, common):
+            norm = normalized(value)
+            if norm:
+                alias.setdefault(norm, rid)
+    return alias
+
+
+def build_fuzzy_pool(alias: dict[str, int]) -> dict[str, list[str]]:
+    """Bucket alias keys by first character so fuzzy lookup stays cheap."""
+    pool: dict[str, list[str]] = {}
+    for key, rid in alias.items():
+        if rid is not None and len(key) >= 5:
+            pool.setdefault(key[0], []).append(key)
+    return pool
+
+
+def fuzzy_remedy(key: str, alias: dict[str, int], pool: dict[str, list[str]]) -> int | None:
+    if key in _FUZZY_CACHE:
+        return _FUZZY_CACHE[key]
+    # Same first character plus a high ratio keeps OCR-damaged names from
+    # latching onto an unrelated remedy (e.g. "Acetic Acid" vs "lactic acid").
+    candidates = pool.get(key[0])
+    hit = None
+    if candidates:
+        match = difflib.get_close_matches(key, candidates, n=1, cutoff=FUZZY_CUTOFF)
+        hit = alias.get(match[0]) if match else None
+    _FUZZY_CACHE[key] = hit
+    return hit
+
+
+def resolve_remedy(conn: sqlite3.Connection, alias: dict[str, int], trusted: set[str],
+                   pool: dict[str, list[str]], name: Any, abbr: Any, remedy_index: dict | None,
+                   *, allow_create: bool, stats: dict | None = None,
+                   source_id: int | None = None) -> int | None:
+    """Resolve a source's remedy reference to a remedies.id, or None if untrustworthy.
+
+    Order: exact name/abbrev match, then a conservative fuzzy match, then — only
+    when allow_create and the name comes from a curated vocabulary (trusted) —
+    a new remedy row. OCR debris with no trustworthy name resolves to None.
+    """
+    name = str(name or "").strip()
+    abbr = str(abbr or "").strip()
+    if not name and abbr and remedy_index:
+        idx = remedy_index.get(abbr) or remedy_index.get(abbr.rstrip("."))
+        if isinstance(idx, dict):  # some books store {"name": ..., "resolved": bool}
+            idx = idx.get("name")
+        name = str(idx or "").strip()
+    nk, ak = normalized(name), normalized(abbr)
+    for key in (nk, ak):
+        if key and key in alias:
+            return alias[key]
+    if len(nk) >= 5:
+        hit = fuzzy_remedy(nk, alias, pool)
+        if hit is not None:
+            return hit
+    if allow_create and nk and nk in trusted:
+        rid = ensure_remedy(conn, name, "")
+        if rid:
+            alias[nk] = rid
+            if abbr and len(abbr) <= 8 and " " not in abbr and ak:
+                alias.setdefault(ak, rid)
+                conn.execute(
+                    "UPDATE remedies SET abbreviation=? WHERE id=? AND (abbreviation IS NULL OR abbreviation='')",
+                    (abbr, rid))
+            if source_id is not None:
+                link_remedy_source(conn, rid, source_id, abbr or name, name,
+                                   attribution="curated vocabulary match", license_name="CC0-1.0")
+            if stats is not None:
+                stats["created_remedies"] = stats.get("created_remedies", 0) + 1
+        return rid
+    return None
+
+
+def unique_source_name(conn: sqlite3.Connection, base: str) -> str:
+    name, suffix = base, 2
+    while conn.execute("SELECT 1 FROM sources WHERE name=?", (name,)).fetchone():
+        name = f"{base} ({suffix})"
+        suffix += 1
+    return name
+
+
+def ext_source(conn: sqlite3.Connection, book: dict) -> int:
+    year = book.get("year")
+    base = f"{book['title']} ({year})" if year else str(book["title"])
+    notes = EXT_LICENSE_NOTE
+    if book.get("quality"):
+        notes += f"; quality={book['quality']}"
+        if book.get("quality_note"):
+            notes += f" — {book['quality_note']}"
+    attribution = "; ".join(x for x in (str(book.get("author") or ""), str(book.get("publisher") or "")) if x)
+    return ensure_source(conn, unique_source_name(conn, base), f"ext_hommr_json/{book['path']}",
+                         attribution, url=f"{REPO_JSON_URL}/blob/main/{book['path']}",
+                         license_name="CC0-1.0", notes=notes)
+
+
+def import_remedia(conn: sqlite3.Connection, path: Path, alias: dict[str, int]) -> dict:
+    """Import the Remedia shop catalog: remedy metadata, products, categories.
+
+    The full price-variant matrix stays in the source JSON; each remedy row only
+    gets its potency list and price range.
+    """
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    meta = payload.get("metadata") or {}
+    source_url = str(meta.get("source") or "https://remedia-homeopathy.com/shop/")
+    sid = ensure_source(conn, "Remedia Homeopathy Catalog", str(path), attribution=source_url,
+                        url=source_url, license_name="catalog data; verify reuse rights",
+                        notes=f"Catalog snapshot scraped {meta.get('scraped_at', 'unknown')}; "
+                              f"prices excl. VAT. {meta.get('note', '')}")
+    license_name = "catalog data; verify reuse rights"
+    stats = {"remedies": 0, "matched": 0, "created": 0, "products": 0, "categories": 0}
+    for item in payload.get("homeopathic_remedies", []):
+        name = str(item.get("name") or item.get("main_name") or "").strip()
+        if not name:
+            continue
+        synonyms = [str(s) for s in (item.get("synonyms") or []) if s]
+        keys: list[str] = []
+        for value in [item.get("main_name"), name, *synonyms]:
+            key = normalized(value)
+            if key and key not in keys:
+                keys.append(key)
+        rid = next((alias[k] for k in keys if k in alias), None)
+        potencies: list[str] = []
+        for variant in item.get("price_variants") or []:
+            potency = variant.get("potency")
+            if potency and potency not in potencies:
+                potencies.append(str(potency))
+        data = {k: v for k, v in {
+            "code": item.get("code"), "url": item.get("url"), "main_name": item.get("main_name"),
+            "synonyms": synonyms, "main_group": item.get("main_group"), "family": item.get("family"),
+            "scholten_id": item.get("scholten_id"), "manufacturer_regulation": item.get("manufacturer_regulation"),
+            "remedia_id": item.get("remedia_id"), "image": item.get("image"),
+            "price_low": item.get("price_low"), "price_high": item.get("price_high"),
+            "currency": item.get("currency"), "dosages": item.get("dosages"), "potencies": potencies,
+        }.items() if v not in (None, "", [], {})}
+        group = str(item.get("main_group") or "unspecified")
+        if rid is None:
+            rid = ensure_remedy(conn, name, "", remedy_class=group, source_data={"remedia": data})
+            stats["created"] += 1
+        else:
+            row = conn.execute("SELECT source_data FROM remedies WHERE id=?", (rid,)).fetchone()
+            try:
+                merged = json.loads(row[0] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                merged = {}
+            merged["remedia"] = data
+            conn.execute(
+                "UPDATE remedies SET source_data=?, remedy_class=CASE WHEN remedy_class='unspecified' THEN ? ELSE remedy_class END WHERE id=?",
+                (json.dumps(merged, ensure_ascii=False), group, rid))
+            stats["matched"] += 1
+        if rid:
+            for key in keys:
+                alias.setdefault(key, rid)
+            link_remedy_source(conn, rid, sid, item.get("code"), name, attribution=source_url,
+                               license_name=license_name)
+        stats["remedies"] += 1
+    domain = "https://remedia-homeopathy.com"
+    for product in payload.get("shop_products", []):
+        title = str(product.get("name") or "Shop product")
+        low, high = product.get("price_low"), product.get("price_high")
+        price = f"{low} {product.get('currency', '')}".strip() if low == high else \
+            f"{low}–{high} {product.get('currency', '')}".strip()
+        categories = [str(c) for c in (product.get("categories") or [])]
+        body = title + (f"\nPrice: {price}" if price else "")
+        if categories:
+            body += "\nCategories: " + ", ".join(categories)
+        meta_row = {"code": product.get("code"), "url": product.get("url"), "price_low": low,
+                    "price_high": high, "currency": product.get("currency"),
+                    "categories": categories, "variant_count": len(product.get("variants") or [])}
+        doc_id = conn.execute(
+            "INSERT INTO reference_documents(source_id,document_type,title,body,url,metadata) VALUES(?,?,?,?,?,?)",
+            (sid, "product", title, body, product.get("url") or None,
+             json.dumps(meta_row, ensure_ascii=False))).lastrowid
+        add_search(conn, "reference_document", doc_id, title, body)
+        stats["products"] += 1
+    for category in payload.get("categories", []):
+        codes = [str(c) for c in (category.get("product_codes") or [])]
+        rel = str(category.get("url") or "")
+        url = domain + rel if rel.startswith("/") else rel
+        title = str(category.get("name") or "Category")
+        body = f"{title}\n{len(codes)} products\n{url}"
+        meta_row = {"slug": category.get("slug"), "url": rel, "product_count": len(codes),
+                    "product_codes": codes}
+        doc_id = conn.execute(
+            "INSERT INTO reference_documents(source_id,document_type,title,body,url,metadata) VALUES(?,?,?,?,?,?)",
+            (sid, "product_category", title, body, url or None,
+             json.dumps(meta_row, ensure_ascii=False))).lastrowid
+        add_search(conn, "reference_document", doc_id, title, body)
+        stats["categories"] += 1
+    return stats
+
+
+def import_repertory_book(conn: sqlite3.Connection, ext_root: Path, book: dict,
+                          alias: dict[str, int], trusted: set[str], pool: dict[str, list[str]]) -> dict:
+    path = ext_root / book["path"]
+    data = json.loads(path.read_text(encoding="utf-8"))
+    remedy_index = data.get("remedy_index") or {}
+    for value in remedy_index.values():
+        if isinstance(value, dict):  # {"name": ..., "resolved": bool} form
+            value = value.get("name")
+        key = normalized(value)
+        if key:
+            trusted.add(key)
+    sid = ext_source(conn, book)
+    label = str(book["title"])
+    stats = {"rubrics": 0, "rubric_links": 0, "skipped_links": 0, "created_remedies": 0}
+
+    def process(chapter: str, rub: dict) -> None:
+        text = str(rub.get("text") or "").strip()
+        if len(text) < 2:
+            return
+        # Chapter prefix keeps duplicate rubric texts inside one book unique
+        # (the rubrics table is UNIQUE on source/repertory/text) and mirrors the
+        # full-path style used by the OOREP rubrics already in this database.
+        full = f"{chapter} — {text}" if chapter else text
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO rubrics(source_id,repertory,rubric,source_record_id) VALUES(?,?,?,?)",
+            (sid, label, full, str(rub.get("id") or "")))
+        is_new = bool(cur.rowcount)
+        if is_new:
+            rubric_id = cur.lastrowid
+        else:
+            row = conn.execute("SELECT id FROM rubrics WHERE source_id=? AND repertory=? AND rubric=?",
+                               (sid, label, full)).fetchone()
+            if not row:
+                return
+            rubric_id = row[0]
+        tokens = []
+        for entry in rub.get("remedies") or []:
+            rid = resolve_remedy(conn, alias, trusted, pool, entry.get("name"), entry.get("abbrev"),
+                                 remedy_index, allow_create=True, stats=stats, source_id=sid)
+            if rid is None:
+                stats["skipped_links"] += 1
+                continue
+            grade = entry.get("grade")
+            try:
+                grade = float(grade) if grade is not None else None
+            except (TypeError, ValueError):
+                grade = None
+            cur2 = conn.execute(
+                "INSERT OR IGNORE INTO rubric_remedies(rubric_id,remedy_id,grade,source_text) VALUES(?,?,?,?)",
+                (rubric_id, rid, grade, str(entry.get("abbrev") or entry.get("name") or "")))
+            if cur2.rowcount:
+                stats["rubric_links"] += 1
+            token = str(entry.get("abbrev") or entry.get("name") or "")
+            if token:
+                tokens.append(token if grade is None else f"{token}:{grade:g}")
+        if is_new:
+            add_search(conn, "rubric", rubric_id, full, ",".join(tokens))
+            stats["rubrics"] += 1
+
+    if book.get("split"):
+        seen: set[str] = set()
+        for entry in data.get("chapters") or data.get("sections") or []:
+            filename = entry.get("file")
+            if not filename or filename in seen:
+                continue
+            seen.add(filename)
+            chapter_path = path.parent / filename
+            if not chapter_path.exists():
+                continue
+            chapter_data = json.loads(chapter_path.read_text(encoding="utf-8"))
+            section = chapter_data.get("section") or chapter_data
+            for rub in section.get("rubrics") or []:
+                process(str(rub.get("chapter") or section.get("title") or entry.get("title") or ""), rub)
+        # Chapter files present on disk but absent from the index (Kent's
+        # extremities-2 continuation) still belong to the book.
+        for chapter_path in sorted(path.parent.glob("*.json")):
+            if chapter_path.name == "index.json" or chapter_path.name in seen:
+                continue
+            chapter_data = json.loads(chapter_path.read_text(encoding="utf-8"))
+            section = chapter_data.get("section") or chapter_data
+            for rub in section.get("rubrics") or []:
+                process(str(rub.get("chapter") or section.get("title") or chapter_path.stem), rub)
+    else:
+        for section in data.get("sections") or data.get("chapters") or []:
+            title = str(section.get("title") or "")
+            for rub in section.get("rubrics") or []:
+                process(str(rub.get("chapter") or title), rub)
+    return stats
+
+
+def import_mm_book(conn: sqlite3.Connection, ext_root: Path, book: dict,
+                   alias: dict[str, int], trusted: set[str], pool: dict[str, list[str]]) -> dict:
+    path = ext_root / book["path"]
+    data = json.loads(path.read_text(encoding="utf-8"))
+    sid = ext_source(conn, book)
+    url = f"{REPO_JSON_URL}/blob/main/{book['path']}"
+    attribution = "; ".join(x for x in (str(book.get("author") or ""),
+                                        f"{book.get('title', '')} ({book.get('year')})") if x)
+    stats = {"mm_entries": 0, "mm_rows": 0, "mm_linked": 0}
+    for rem in data.get("remedies") or []:
+        stats["mm_entries"] += 1
+        rid = resolve_remedy(conn, alias, trusted, pool, rem.get("name"), rem.get("abbrev"),
+                             None, allow_create=False)
+        if rid is None:
+            rid = resolve_remedy(conn, alias, trusted, pool, rem.get("canonical_name"),
+                                 rem.get("abbrev"), None, allow_create=False)
+        lines = []
+        indications = rem.get("clinical_indications")
+        if isinstance(indications, list) and indications:
+            lines.append("Clinical indications: " + ", ".join(str(x) for x in indications))
+        sections = rem.get("sections")
+        if isinstance(sections, dict):
+            for heading, body in sections.items():
+                if body:
+                    lines.append(f"{heading}\n{body}")
+        for symptom in rem.get("symptoms") or []:
+            body = str(symptom.get("text") or "").strip()
+            if body:
+                chapter = str(symptom.get("chapter") or "").strip()
+                lines.append(f"{chapter}: {body}" if chapter else body)
+        text = "\n\n".join(lines)
+        if not text:
+            continue
+        title = str(rem.get("name") or rem.get("canonical_name") or rem.get("abbrev") or "Untitled remedy")
+        add_mm(conn, sid, rid, title, text, url, attribution)
+        stats["mm_rows"] += 1
+        if rid:
+            stats["mm_linked"] += 1
+    return stats
+
+
+def import_treatise_book(conn: sqlite3.Connection, ext_root: Path, book: dict,
+                         alias: dict[str, int], trusted: set[str], pool: dict[str, list[str]]) -> dict:
+    path = ext_root / book["path"]
+    data = json.loads(path.read_text(encoding="utf-8"))
+    sections = data.get("sections") or []
+    sid = ext_source(conn, book)
+    url = f"{REPO_JSON_URL}/blob/main/{book['path']}"
+    attribution = "; ".join(x for x in (str(book.get("author") or ""),
+                                        f"{book.get('title', '')} ({book.get('year')})") if x)
+    # Pass 1: resolve section titles so we can tell a remedy-monograph book
+    # (Clarke's Dictionary, Kent's Lectures, Allen's Keynotes, ...) from a
+    # chapter-titled treatise. Match-only: titles never create remedies.
+    resolved: list[int | None] = []
+    titled = matched = 0
+    for sec in sections:
+        title = str(sec.get("title") or "").strip()
+        rid = None
+        if title:
+            titled += 1
+            rid = resolve_remedy(conn, alias, trusted, pool, title, "", None, allow_create=False)
+            if rid:
+                matched += 1
+        resolved.append(rid)
+    is_remedy_book = bool(titled) and matched / titled >= 0.5
+    stats = {"treatise_sections": 0, "treatise_mm_books": int(is_remedy_book),
+             "mm_rows": 0, "mm_linked": 0}
+    for sec, rid in zip(sections, resolved):
+        body = str(sec.get("text") or "")
+        notes = sec.get("notes")
+        if notes:
+            body += "\n\nNotes:\n" + ("\n".join(str(x) for x in notes) if isinstance(notes, list) else str(notes))
+        if not body:
+            continue
+        title = str(sec.get("title") or "").strip()
+        if not title:
+            number = sec.get("n")
+            title = f"{book['title']} §{number}" if number is not None else str(book["title"])
+        meta: dict[str, Any] = {"book": str(book.get("id") or "")}
+        for key in ("n", "from", "corroboration"):
+            if sec.get(key) is not None:
+                meta[key] = sec[key]
+        doc_id = conn.execute(
+            "INSERT INTO reference_documents(source_id,document_type,title,body,url,metadata,remedy_id) VALUES(?,?,?,?,?,?,?)",
+            (sid, "treatise_section", title, body, url, json.dumps(meta, ensure_ascii=False), rid)).lastrowid
+        add_search(conn, "reference_document", doc_id, title, body)
+        stats["treatise_sections"] += 1
+        if is_remedy_book and rid:
+            add_mm(conn, sid, rid, title, body, url, attribution)
+            stats["mm_rows"] += 1
+            stats["mm_linked"] += 1
+    return stats
+
+
+def import_ext_dataset(conn: sqlite3.Connection, ext_root: Path, alias: dict[str, int]) -> dict:
+    """Import the drsamonline CC0 JSON dataset driven by its catalog.json."""
+    catalog = json.loads((ext_root / "catalog.json").read_text(encoding="utf-8"))
+    trusted = set(alias)
+    pool = build_fuzzy_pool(alias)
+    stats: dict[str, int] = {"books": 0, "catalog_books": len(catalog.get("books", []))}
+    importers = {"repertory": import_repertory_book, "materia_medica": import_mm_book,
+                 "treatise": import_treatise_book}
+    for book in catalog.get("books", []):
+        importer = importers.get(book.get("type"))
+        if not importer:
+            continue
+        for key, value in importer(conn, ext_root, book, alias, trusted, pool).items():
+            stats[key] = stats.get(key, 0) + value
+        stats["books"] += 1
+    return stats
+
+
+def import_repository_catalog(conn: sqlite3.Connection, path: Path) -> int:
+    """Load verified repository/source pointers into source_catalog."""
+    if not path.exists():
+        return 0
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    sid = ensure_source(conn, "Curated repository catalog", "data/repository_catalog.json",
+                        attribution=f"Curated by this project; URLs verified {payload.get('generated', 'unknown date')}",
+                        license_name="reference metadata only",
+                        notes=str(payload.get("note", "")))
+    count = 0
+    for entry in payload.get("entries", []):
+        link_id = None
+        if entry.get("source"):
+            row = conn.execute("SELECT id FROM sources WHERE name=?", (entry["source"],)).fetchone()
+            if row:
+                link_id = row[0]
+            else:
+                print(f"note: repository catalog entry '{entry.get('name')}' references unknown source "
+                      f"'{entry['source']}'; left unlinked")
+        conn.execute(
+            "INSERT INTO source_catalog(name,source_type,url,license_claim,review_status,relevance,source_id) VALUES(?,?,?,?,?,?,?)",
+            (entry.get("name", ""), entry.get("source_type", ""), entry.get("url", ""),
+             entry.get("license_claim", ""), entry.get("review_status", "needs verification"),
+             entry.get("relevance", ""), link_id))
+        count += 1
+    return count
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_DB, help="SQLite output path")
     parser.add_argument("--search-export", type=Path, default=DEFAULT_SEARCH_EXPORT,
                         help="Compressed browser-search export path")
+    parser.add_argument("--remedia", type=Path, default=ROOT.parent / "remedia-homeopathy-database.json",
+                        help="Remedia catalog JSON (skipped when absent)")
+    parser.add_argument("--ext-repo", type=Path, default=ROOT.parent / "ext_hommr_json",
+                        help="drsamonline JSON checkout with catalog.json (skipped when absent)")
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.exists():
         args.output.unlink()
-    global _REMEDY_CACHE
+    global _REMEDY_CACHE, _FUZZY_CACHE
     _REMEDY_CACHE = {}
+    _FUZZY_CACHE = {}
     conn = sqlite3.connect(args.output)
     conn.execute("PRAGMA journal_mode=OFF")
     conn.execute("PRAGMA synchronous=OFF")
@@ -219,6 +660,8 @@ def main() -> None:
     conn.execute("BEGIN")
     try:
         source_ids: dict[str, int] = {}
+        import_stats: dict[str, int] = {}
+        build_notes: list[str] = []
         for filename, (label, attribution) in DATASETS.items():
             path = DATA / filename
             if path.exists():
@@ -306,10 +749,7 @@ def main() -> None:
             doc_id = conn.execute("INSERT INTO reference_documents(source_id,document_type,title,body,metadata) VALUES(?,?,?,?,?)",
                                   (tauto_source, "tautopathy_agent", name, str(agent.get("use", "")) + "\n" + str(agent.get("note", "")), json.dumps(agent, ensure_ascii=False))).lastrowid
             add_search(conn, "reference_document", doc_id, name, json.dumps(agent, ensure_ascii=False))
-        for repo in tauto.get("repositories", []):
-            conn.execute("INSERT INTO source_catalog(name,source_type,url,license_claim,relevance,source_id) VALUES(?,?,?,?,?,?)",
-                         (repo.get("name", "Unnamed source"), repo.get("type", ""), repo.get("url", ""),
-                          repo.get("license", "unknown"), repo.get("relevance", ""), tauto_source))
+        # tautopathy "repositories" placeholders are replaced by data/repository_catalog.json below.
 
         # Remaining local JSON datasets retained with their complete metadata/body.
         for filename, doc_type, root_key, title_field, body_field in (
@@ -348,6 +788,24 @@ def main() -> None:
                                (stock_source, "inventory", title, json.dumps(item, ensure_ascii=False), json.dumps(item, ensure_ascii=False))).lastrowid
             add_search(conn, "inventory", did, title, json.dumps(item, ensure_ascii=False))
 
+        # External local datasets: Remedia catalog, drsamonline repertory/MM/treatise
+        # JSON, and the curated repository catalog. Each is skipped with a note
+        # when its input file is absent so the build stays reproducible.
+        alias = build_alias(conn)
+        if args.remedia.exists():
+            stats = import_remedia(conn, args.remedia, alias)
+            for key, value in stats.items():
+                import_stats[f"remedia_{key}"] = import_stats.get(f"remedia_{key}", 0) + value
+        else:
+            build_notes.append(f"Remedia catalog not found at {args.remedia}; skipped")
+        if (args.ext_repo / "catalog.json").exists():
+            stats = import_ext_dataset(conn, args.ext_repo, alias)
+            for key, value in stats.items():
+                import_stats[f"ext_{key}"] = import_stats.get(f"ext_{key}", 0) + value
+        else:
+            build_notes.append(f"drsamonline JSON checkout not found at {args.ext_repo}; skipped")
+        import_stats["repository_catalog"] = import_repository_catalog(conn, DATA / "repository_catalog.json")
+
         conn.execute("INSERT INTO sources(name,license,attribution,review_status,notes) VALUES(?,?,?,?,?)",
                      ("Internet source coverage", "varies", "External sources are pointers only; import text only after checking copyright, license, attribution, and medical accuracy.",
                       "not ingested", "No claim of containing everything available online; this build contains project-local data only."))
@@ -360,7 +818,8 @@ def main() -> None:
         conn.close()
     verify = sqlite3.connect(args.output)
     counts = {table: verify.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-              for table in ("remedies", "materia_medica", "rubrics", "rubric_remedies", "modalities", "reference_documents", "source_catalog")}
+              for table in ("remedies", "materia_medica", "rubrics", "rubric_remedies", "modalities",
+                            "reference_documents", "source_catalog", "sources", "search_index")}
     args.search_export.parent.mkdir(parents=True, exist_ok=True)
     rows = verify.execute("""
       SELECT s.item_type, s.item_id, s.title, s.body,
@@ -385,8 +844,13 @@ def main() -> None:
     verify.close()
     print(json.dumps({"database": str(args.output), "search_export": str(args.search_export),
                       "search_export_bytes": args.search_export.stat().st_size,
-                      "search_records": len(export), "counts": counts}, indent=2))
+                      "search_records": len(export), "counts": counts,
+                      "import_stats": import_stats, "build_notes": build_notes}, indent=2))
 
 
 if __name__ == "__main__":
     main()
+    # refresh the recommender's data/db_rag.js + data/db_mm.js from the fresh DB
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, str(Path(__file__).with_name("build_recommender_db.py"))], check=True)

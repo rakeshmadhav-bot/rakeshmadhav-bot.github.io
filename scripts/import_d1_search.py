@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DB = ROOT / "database" / "homeopathy.sqlite"
 OUT = ROOT / "worker" / "seed"
-TARGET_BYTES = 180_000
+TARGET_BYTES = 1_000_000
 
 
 def quote(value: object) -> str:
