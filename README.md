@@ -56,6 +56,26 @@ not work — and **Kojo** answers after live web research.
   individual fit against coverage, name the best single remedy with its reasoning,
   and justify any departure from the totals. Grades may only be the ones printed
   in that block — never invented.
+- **Dictate instead of typing.** 🎤 starts the browser's own speech recognition
+  into the composer: words are appended to whatever is already typed, the box
+  stays editable, and a second tap stops the session with the text left in place
+  ready to send. Chrome closes a dictation session after a pause, so it reopens
+  itself (up to 10 times in three minutes) until you stop it. Blocked permission,
+  a missing microphone and an unsupported browser each get their own message
+  instead of a silent failure. Chrome, Edge and Chrome for Android support it;
+  Firefox does not. The audio goes to the browser's speech service, so dictation
+  needs a connection.
+- **Medical reports can be attached.** 📎 in the composer takes JPEG, PNG or
+  PDF up to 15 MB, three reports per message. Kojo reads images natively
+  (OpenAI `image_url` parts), so a photo of a lab slip goes straight to the
+  model. PDFs are rendered to page images in the browser with pdf.js from
+  jsDelivr (first 4 pages), and large photos are downscaled to 1400 px before
+  sending, which keeps the printed values legible for a fraction of the tokens.
+  The prompt then asks for every value, unit and reference range to be read
+  before the reasoning, and still closes with the Final Top 5. A message can be a
+  report on its own, with no typed text. Nothing is uploaded anywhere: the file
+  is read on the device and only the message you send leaves it. Saved chats keep
+  a `📄 Report image` placeholder instead of the pixels, so history stays small.
 - **Visible check.** Each reply ends with `🗄️ Local database: n/5 remedies
   verified`, flagging any Top 5 remedy that exists only in the wider materia
   medica.

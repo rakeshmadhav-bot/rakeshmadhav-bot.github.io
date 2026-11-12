@@ -121,13 +121,16 @@
     <div class="chat-quick" id="chatQuick" aria-label="Suggested answers"></div>
     <form class="chat-composer" onsubmit="chatSubmit(event)">
       <div class="composer-box">
+        <div class="attach-tray" id="attachTray" hidden></div>
         <label class="sr-only" for="chatInput">Your answer</label>
-        <textarea id="chatInput" rows="1" placeholder="Describe the case, or ask about a remedy…" autocomplete="off"></textarea>
+        <textarea id="chatInput" rows="1" placeholder="Describe the case, or attach a report…" autocomplete="off"></textarea>
         <div class="composer-bar">
-          <button type="button" class="composer-icon" id="chatMic" onclick="chatVoice()" aria-label="Speak your answer" title="Speak your answer">🎤</button>
-          <span class="composer-hint">Enter to send</span>
+          <button type="button" class="composer-icon" id="chatAttachBtn" onclick="chatPickFiles()" aria-label="Attach a medical report (JPEG, PNG or PDF)" title="Attach a report (JPEG, PNG or PDF)">📎</button>
+          <button type="button" class="composer-icon" id="chatMic" onclick="chatVoice()" aria-label="Dictate instead of typing" title="Dictate instead of typing" aria-pressed="false">🎤</button>
+          <span class="composer-hint" id="composerHint">Enter to send</span>
           <button type="submit" class="composer-send" id="chatSendBtn" aria-label="Send message" title="Send">↑</button>
         </div>
+        <input type="file" id="chatFileInput" accept="image/jpeg,image/png,application/pdf" multiple onchange="chatFilesPicked(this)" hidden>
       </div>
     </form>
     <p class="chat-note">Traditional repertorisation — not a diagnosis or prescription. This conversation stays in your browser.</p>
@@ -3613,7 +3616,7 @@ async function chatResearch(text){
   return {block:block, sources:sources};
 }
 
-async function chatKojoAnswer(userText){
+async function chatKojoAnswer(userText, attachList){
   var cfg=chatAIResolve();
   var wrap=chatAdd('bot','<div style="margin-bottom:4px"><span style="font-size:11px;opacity:.7">🌐 Kojo</span> <span class="typing"><i></i><i></i><i></i></span></div><div class="kojo-webstat" style="font-size:11.5px;opacity:.75;margin-bottom:6px">researching the internet…</div><div class="kojo-live" style="white-space:pre-wrap;font-size:12.8px;line-height:1.55"></div>');
   var live=wrap?wrap.querySelector('.kojo-live'):null;
@@ -3646,6 +3649,10 @@ async function chatKojoAnswer(userText){
       +'Keep it tight: about 250–400 words unless depth is genuinely needed. Markdown-light: **bold** and short lists. Never act as a prescribing physician.'
       +(research.block?('\n\n'+research.block):'\n\n(no web results returned this turn — verify from classical knowledge and say so.)')
       +(local.block?('\n'+local.block):'');
+  var images=chatAttachImages(attachList);
+  if(images.length){
+    sys+='\n\nThe user attached '+images.length+' image(s) of a medical report — lab values, a prescription, a scan report or a discharge summary. Read every printed value, unit, date and reference range BEFORE reasoning. Quote abnormal values with their units and the report date when it is visible, and fold them into the picture (they often carry the modality, the causation or the constitution). If a digit or a word is genuinely unreadable, say which one instead of guessing. A report is evidence, not a diagnosis: keep the classical reasoning and still close with the Final Top 5.';
+  }
   // Assistant turns keep their full length: the Final Top 5 is printed at the
   // end of a reply, so a short cap would amputate the model's own ranking and
   // make follow-ups ("why is Bryonia third?") believe no ranking was ever given.
@@ -3658,6 +3665,12 @@ async function chatKojoAnswer(userText){
   var _kill=_ab?setTimeout(function(){ _ab.abort(); },300000):null;
   try{
     if(!cfg.endpoint) throw new Error('No AI provider configured — check ⚙️ Settings');
+    var userParts=[];
+    if(userText) userParts.push({type:'text', text:String(userText||'').slice(0,1200)});
+    images.forEach(function(u){ userParts.push({type:'image_url', image_url:{url:u}}); });
+    var lastMsg = userParts.length>1
+      ? {role:'user', content:userParts}
+      : {role:'user', content:String(userText||'').slice(0,1200)};
     var headers={'Content-Type':'application/json'};
     if(cfg.authHeader) headers['Authorization']=cfg.authHeader;
     var response=await fetch(cfg.endpoint,{
@@ -3669,9 +3682,7 @@ async function chatKojoAnswer(userText){
         stream:true,
         temperature:0.4,
         max_tokens:1800,
-        messages:[{role:'system', content:sys}].concat(history).concat([
-          {role:'user', content:String(userText||'').slice(0,1200)}
-        ])
+        messages:[{role:'system', content:sys}].concat(history).concat([lastMsg])
       })
     });
     if(!response.ok){
@@ -3744,16 +3755,173 @@ async function chatKojoAnswer(userText){
   }
 }
 
+/* ---------------- report attachments: JPEG, PNG, PDF ---------------- */
+// Kojo reads images (OpenAI image_url parts), so a photo of a lab report goes
+// straight to the model. PDFs are rendered to page images in the browser with
+// pdf.js — no upload server, nothing leaves the device until you press send.
+var chatAttach=[];                 // {id,name,pages,images:[dataURL]}
+var CHAT_ATTACH_MAX=3;             // reports per message
+var CHAT_ATTACH_BYTES=15*1024*1024;
+var CHAT_ATTACH_EDGE=1400;         // longest side, in px, after downscaling
+var CHAT_PDF_MAX_PAGES=4;
+var PDFJS_SRC='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+var PDFJS_WORKER='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+var _pdfjsLoading=null;
+
+function chatPickFiles(){ var i=document.getElementById('chatFileInput'); if(i){ i.value=''; i.click(); } }
+function chatFilesPicked(input){
+  var f=input.files?Array.prototype.slice.call(input.files):[];
+  input.value='';
+  if(f.length) chatAttachFiles(f);
+}
+function chatAttachRender(){
+  var tray=document.getElementById('attachTray'); if(!tray) return;
+  tray.innerHTML='';
+  if(!chatAttach.length){ tray.hidden=true; }
+  else {
+    tray.hidden=false;
+    chatAttach.forEach(function(a){
+      var chip=document.createElement('div'); chip.className='attach-chip';
+      var img=document.createElement('img'); img.alt=''; img.src=(a.images&&a.images[0])||'';
+      var nm=document.createElement('span'); nm.className='attach-name';
+      nm.textContent=a.name+(a.pages>1?(' · '+a.pages+' pages'):'');
+      nm.title=nm.textContent;
+      var x=document.createElement('button'); x.type='button'; x.className='attach-x'; x.textContent='×';
+      x.setAttribute('aria-label','Remove '+a.name);
+      x.onclick=function(){ chatAttach=chatAttach.filter(function(b){ return b.id!==a.id; }); chatAttachRender(); };
+      chip.appendChild(img); chip.appendChild(nm); chip.appendChild(x);
+      tray.appendChild(chip);
+    });
+  }
+  var hint=document.getElementById('composerHint');
+  if(hint) hint.textContent=chatAttach.length
+    ? (chatAttach.length+' report'+(chatAttach.length>1?'s':'')+' attached')
+    : 'Enter to send';
+}
+function chatAttachReset(){ chatAttach=[]; chatAttachRender(); }
+function chatReadFile(file){
+  return new Promise(function(res,rej){
+    var fr=new FileReader();
+    fr.onload=function(){ res(String(fr.result||'')); };
+    fr.onerror=function(){ rej(new Error('unreadable file')); };
+    fr.readAsDataURL(file);
+  });
+}
+// Photos from a phone are 3–12 MB and mostly white paper: shrink to ~1400px so
+// the model gets the same legibility for a fraction of the tokens.
+function chatDownscale(dataUrl){
+  return new Promise(function(res){
+    var im=new Image();
+    im.onload=function(){
+      var w=im.naturalWidth||im.width, h=im.naturalHeight||im.height;
+      if(!w||!h){ res(dataUrl); return; }
+      var k=Math.min(1, CHAT_ATTACH_EDGE/Math.max(w,h));
+      var cw=Math.max(1,Math.round(w*k)), ch=Math.max(1,Math.round(h*k));
+      var c=document.createElement('canvas'); c.width=cw; c.height=ch;
+      var ctx=c.getContext('2d');
+      ctx.fillStyle='#fff'; ctx.fillRect(0,0,cw,ch);
+      ctx.drawImage(im,0,0,cw,ch);
+      try{ res(c.toDataURL('image/jpeg',0.86)); }catch(e){ res(dataUrl); }
+    };
+    im.onerror=function(){ res(dataUrl); };
+    im.src=dataUrl;
+  });
+}
+function chatLoadPdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(_pdfjsLoading) return _pdfjsLoading;
+  _pdfjsLoading=new Promise(function(res,rej){
+    var sc=document.createElement('script');
+    sc.src=PDFJS_SRC; sc.async=true;
+    sc.onload=function(){
+      try{
+        if(!window.pdfjsLib) throw new Error('pdf.js missing');
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;
+        res(window.pdfjsLib);
+      }catch(e){ rej(e); }
+    };
+    sc.onerror=function(){ rej(new Error('pdf.js could not load')); };
+    document.head.appendChild(sc);
+  });
+  return _pdfjsLoading;
+}
+async function chatPdfToImages(file){
+  var lib=await chatLoadPdfJs();
+  var bytes=new Uint8Array(await file.arrayBuffer());
+  var doc=await lib.getDocument({data:bytes}).promise;
+  var images=[], max=Math.min(doc.numPages, CHAT_PDF_MAX_PAGES);
+  for(var p=1;p<=max;p++){
+    var page=await doc.getPage(p);
+    var base=page.getViewport({scale:1});
+    var scale=Math.min(2, CHAT_ATTACH_EDGE/Math.max(1,base.width));
+    var vp=page.getViewport({scale:scale});
+    var c=document.createElement('canvas');
+    c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+    var ctx=c.getContext('2d');
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+    await page.render({canvasContext:ctx, viewport:vp}).promise;
+    images.push(c.toDataURL('image/jpeg',0.86));
+  }
+  return {images:images, total:doc.numPages};
+}
+async function chatAttachFiles(files){
+  for(var i=0;i<files.length;i++){
+    var f=files[i];
+    if(chatAttach.length>=CHAT_ATTACH_MAX){
+      chatBot('Up to '+CHAT_ATTACH_MAX+' reports per message — remove one to add another.');
+      break;
+    }
+    var type=String(f.type||'').toLowerCase();
+    var isPdf=type==='application/pdf' || /\.pdf$/i.test(f.name||'');
+    var isImg=/^image\/(jpeg|jpg|png)$/.test(type) || /\.(jpe?g|png)$/i.test(f.name||'');
+    if(!isPdf && !isImg){ chatBot(esc(f.name||'That file')+' isn’t a JPEG, PNG or PDF.'); continue; }
+    if(f.size>CHAT_ATTACH_BYTES){ chatBot(esc(f.name||'That file')+' is over 15 MB — a photo of the page works better.'); continue; }
+    chatStatus('Reading '+(f.name||'the report')+'…', true);
+    try{
+      if(isPdf){
+        var pdf=await chatPdfToImages(f);
+        chatAttach.push({id:'a'+Date.now()+(Math.random()*1e4|0), name:f.name||'report.pdf', pages:pdf.total, images:pdf.images});
+        if(pdf.total>pdf.images.length) chatBot('Read the first '+pdf.images.length+' of '+pdf.total+' pages of '+esc(f.name||'the PDF')+'.');
+      } else {
+        var raw=await chatReadFile(f);
+        var small=await chatDownscale(raw);
+        chatAttach.push({id:'a'+Date.now()+(Math.random()*1e4|0), name:f.name||'report.jpg', pages:1, images:[small]});
+      }
+    }catch(e){
+      console.warn('attach', e);
+      chatBot('Couldn’t read '+esc(f.name||'that file')+' — try a JPEG or PNG photo of the page.');
+    }
+  }
+  chatAttachRender();
+  chatStatus('Ready');
+  var input=document.getElementById('chatInput'); if(input) input.focus();
+}
+function chatAttachImages(list){
+  var out=[];
+  (list||[]).forEach(function(a){ (a.images||[]).forEach(function(u){ out.push(u); }); });
+  return out;
+}
+function chatUserAttachments(text, atts){
+  var html=text?esc(text):'';
+  (atts||[]).forEach(function(a){
+    html+='<div class="attach-preview"><img data-report="1" alt="'+esc(a.name||'report')+'" src="'+(a.images&&a.images[0]||'')+'"></div>';
+  });
+  return chatAdd('user', html);
+}
+
 /* ---------------- send / reset / init ---------------- */
 async function chatSend(text){
   if(CHAT.busy) return;
   var t=String(text||'').trim();
-  if(!t) return;
+  var atts=chatAttach.slice();
+  if(!t && !atts.length) return;
+  if(!t) t='Please read this medical report and analyse the case.';
   var input=document.getElementById('chatInput');
   if(input){ input.value=''; chatAutosize(); }
   chatSetChips([]);
-  chatUser(t);
-  CHAT.msgs.push({role:'user', content:t.slice(0,1200)});
+  chatUserAttachments(t, atts);
+  chatAttachReset();
+  CHAT.msgs.push({role:'user', content:t.slice(0,1200), report:chatAttachImages(atts).length});
   chatSetBusy(true);
   // Emergency screen still runs: a genuine red flag is the one unsolicited warning.
   var flags=[];
@@ -3770,7 +3938,7 @@ async function chatSend(text){
     if(input) input.focus();
     return;
   }
-  try{ await chatKojoAnswer(t); }
+  try{ await chatKojoAnswer(t, atts); }
   catch(e){ console.error('chat', e); chatBot(aiOriginHint(e)||'Kojo is unreachable right now — send it again in a moment.'); }
   finally{ chatSetBusy(false); if(input) input.focus(); }
 }
@@ -3779,7 +3947,7 @@ function chatSubmit(ev){
   var input=document.getElementById('chatInput');
   if(!input) return;
   var t=input.value.trim();
-  if(!t) return;
+  if(!t && !chatAttach.length) return;   // a report on its own is a valid message
   input.value=''; chatAutosize();
   chatSend(t);
 }
@@ -3809,10 +3977,17 @@ function chatPersistNow(){
   if(!CHAT.sessionId) CHAT.sessionId='c'+Date.now()+(Math.random()*1e6|0);
   var log=document.getElementById('chatLog');
   if(!CHAT.msgs.length) return; // nothing said yet
+  // Report images are megabytes of base64: keep the conversation, drop the pixels.
+  var savedMsgs=CHAT.msgs.map(function(m){
+    var o={role:m.role, content:m.content};
+    if(m.report) o.report=m.report;
+    return o;
+  });
+  var savedLog=(log?log.innerHTML:'').replace(/<div class="attach-preview">[\s\S]*?<\/div>/g,'<div class="attach-note">📄 Report image</div>');
   var rec={
     id:CHAT.sessionId, savedAt:Date.now(), step:'chat',
-    state:{ msgs:CHAT.msgs.slice(), aiTop5:(CHAT.aiTop5||[]).slice() },
-    log:(log?log.innerHTML:'')
+    state:{ msgs:savedMsgs, aiTop5:(CHAT.aiTop5||[]).slice() },
+    log:savedLog
   };
   var arr=chatHistoryAll(), at=-1;
   for(var i=0;i<arr.length;i++){ if(arr[i].id===rec.id){ at=i; break; } }
@@ -4041,35 +4216,98 @@ function setView(v){
 
 /* ---------------- voice ---------------- */
 var chatRec=null, chatListening=false;
+var chatRec=null, chatListening=false, chatVoiceBase='', chatVoiceFinal='';
+var chatVoiceStopAsked=false, chatVoiceDead=false, chatVoiceStartedAt=0, chatVoiceRestarts=0;
+
+function chatVoiceUi(on){
+  var btn=document.getElementById('chatMic'); if(!btn) return;
+  btn.classList.toggle('listening', !!on);
+  btn.textContent=on?'⏹':'🎤';
+  btn.setAttribute('aria-pressed', on?'true':'false');
+  btn.setAttribute('aria-label', on?'Stop dictation':'Dictate instead of typing');
+  btn.title=on?'Stop dictation':'Dictate instead of typing';
+}
+function chatVoiceCommit(){
+  var input=document.getElementById('chatInput'); if(!input) return;
+  if(input.value && !/\s$/.test(input.value)) input.value+=' ';
+  chatAutosize();
+  try{ input.focus(); }catch(e){}
+}
+// Tap once to dictate, tap again to stop: the words land in the composer exactly
+// like typing, so they can be edited, extended or sent as they are.
+function chatVoiceStop(){
+  chatVoiceStopAsked=true;
+  chatListening=false;
+  chatVoiceUi(false);
+  if(chatRec){ try{ chatRec.stop(); }catch(e){} }
+  chatStatus('Ready');
+}
 function chatVoice(){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  var btn=document.getElementById('chatMic');
   var input=document.getElementById('chatInput');
-  if(!SR){ alert('Voice input needs Chrome or Edge. Please type your answer instead.'); return; }
-  if(chatListening && chatRec){ try{ chatRec.stop(); }catch(e){} return; }
-  chatRec=new SR();
-  chatRec.lang='en-US';
-  chatRec.continuous=false;
-  chatRec.interimResults=true;
-  chatRec.onstart=function(){
+  if(chatListening){ chatVoiceStop(); return; }
+  if(!SR){
+    chatBot('Dictation uses the browser’s own speech engine — Chrome, Edge or Chrome on Android. Type the case instead, or attach the report as a file.');
+    return;
+  }
+  var rec=new SR();
+  chatRec=rec;
+  chatVoiceStopAsked=false; chatVoiceDead=false; chatVoiceRestarts=0;
+  chatVoiceStartedAt=Date.now();
+  chatVoiceBase=input?input.value:'';
+  if(chatVoiceBase && !/\s$/.test(chatVoiceBase)) chatVoiceBase+=' ';
+  chatVoiceFinal='';
+  rec.lang=navigator.language||'en-US';
+  rec.continuous=true;
+  rec.interimResults=true;
+  rec.onstart=function(){
     chatListening=true;
-    if(btn){ btn.classList.add('listening'); btn.textContent='⏹'; }
-    chatStatus('Listening…', true);
+    chatVoiceUi(true);
+    chatStatus('Listening — speak, then tap ⏹', true);
   };
-  chatRec.onresult=function(e){
-    var t='';
-    for(var i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript;
-    if(input){ input.value=t; chatAutosize(); }
+  rec.onresult=function(e){
+    var interim='';
+    for(var i=e.resultIndex;i<e.results.length;i++){
+      var r=e.results[i];
+      if(r.isFinal) chatVoiceFinal+=r[0].transcript;
+      else interim+=r[0].transcript;
+    }
+    if(input){ input.value=chatVoiceBase+chatVoiceFinal+interim; chatAutosize(); }
   };
-  chatRec.onerror=function(){ chatStatus('Mic not available'); };
-  chatRec.onend=function(){
+  rec.onerror=function(ev){
+    var code=String((ev&&ev.error)||'');
+    if(code==='not-allowed'||code==='service-not-allowed'||code==='audio-capture'){
+      chatVoiceDead=true; chatListening=false; chatVoiceUi(false); chatVoiceCommit();
+      chatBot(code==='audio-capture'
+        ? 'No microphone was found on this device — type the case, or attach the report as a file.'
+        : 'Microphone access is blocked for this page. Allow the mic for this site in the browser’s address-bar settings, then tap 🎤 again.');
+      return;
+    }
+    if(code==='no-speech'){ chatStatus('Didn’t catch that — still listening…', true); return; }
+    if(code==='network'){
+      chatVoiceDead=true; chatListening=false; chatVoiceUi(false); chatVoiceCommit();
+      chatBot('Dictation needs a connection: the browser sends the audio to its speech service. Type the case instead.');
+      return;
+    }
+    chatStatus('Mic problem — type instead');
+  };
+  rec.onend=function(){
+    // Chrome closes the session after a pause even in continuous mode; reopen it
+    // unless the user stopped, the mic failed, or it has been running too long.
+    if(!chatVoiceStopAsked && !chatVoiceDead && chatVoiceRestarts<10 && (Date.now()-chatVoiceStartedAt)<180000){
+      chatVoiceRestarts++;
+      try{ rec.start(); return; }catch(e){}
+    }
     chatListening=false;
-    if(btn){ btn.classList.remove('listening'); btn.textContent='🎤'; }
+    chatVoiceUi(false);
+    chatVoiceCommit();
     if(!chatStatusRestoreTimer) chatStatus('Ready');
-    if(input) input.focus();
   };
-  try{ chatRec.start(); }
-  catch(e){ alert('Could not start the microphone: '+e.message); }
+  try{ rec.start(); }
+  catch(e){
+    chatListening=false; chatVoiceUi(false);
+    chatBot('Could not start the microphone: '+esc(String(e&&e.message||e))+'. Type the case instead.');
+  }
 }
 var chatStatusRestoreTimer=null;
 

@@ -426,12 +426,23 @@ td{border-color:var(--border) !important}
 #chatInput:focus,#chatInput:focus-visible{box-shadow:none;border:0;outline:none}
 #chatInput::-webkit-scrollbar{width:0;height:0}
 .composer-bar{display:flex;align-items:center;gap:8px;padding:0 2px 2px}
+.attach-tray{display:flex;flex-wrap:wrap;gap:8px;padding:0 0 10px}
+.attach-chip{display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--card2);border:1px solid var(--border);border-radius:8px;max-width:230px}
+.attach-chip img{width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--border);background:#fff}
+.attach-name{font-family:var(--sans);font-size:11.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
+.attach-x{border:0;background:none;color:var(--muted);font-size:15px;line-height:1;cursor:pointer;padding:0 2px;border-radius:4px}
+.attach-x:hover{color:var(--bad);background:var(--card)}
+.attach-preview{margin-top:8px}
+.attach-preview img{display:block;max-width:min(100%,300px);border:1px solid var(--border);border-radius:8px;background:#fff}
+.attach-note{display:inline-block;margin-top:6px;font-family:var(--sans);font-size:11.5px;color:var(--muted);border:1px dashed var(--border);border-radius:6px;padding:3px 7px}
 .composer-icon{
-  width:32px;height:32px;flex:0 0 32px;border-radius:50%;border:1px solid var(--border);
+  position:relative;width:32px;height:32px;flex:0 0 32px;border-radius:50%;border:1px solid var(--border);
   background:transparent;color:var(--muted);font-size:13px;cursor:pointer;display:grid;place-items:center;padding:0;
 }
 .composer-icon:hover{border-color:var(--accent);color:var(--accent)}
-.composer-icon.listening{border-color:var(--bad);color:var(--bad)}
+.composer-icon.listening{border-color:var(--bad);color:#fff;background:var(--bad)}
+.composer-icon.listening::after{content:'';position:absolute;inset:-4px;border-radius:inherit;border:2px solid var(--bad);opacity:.35;animation:micpulse 1.6s ease-out infinite}
+@keyframes micpulse{0%{transform:scale(.94);opacity:.45}70%{transform:scale(1.12);opacity:0}100%{opacity:0}}
 .composer-hint{font-size:11px;color:var(--muted)}
 .composer-send{
   width:32px;height:32px;flex:0 0 32px;border-radius:50%;border:0;background:var(--accent);
@@ -488,6 +499,9 @@ td{border-color:var(--border) !important}
   .viewtabs{padding:0 16px;margin-top:14px;gap:18px}
   .viewhint{display:none}
   .chat-shell{height:calc(100dvh - 148px);min-height:0;padding:0 12px}
+  .chat-toolbar{height:auto;flex-wrap:wrap;gap:10px}
+  .chat-status{white-space:normal;flex:1 1 100%;margin-right:0}
+  .chat-hist-panel{width:100%}
   .chat-log{padding:6px 0 12px;gap:18px}
   .chat-summary{padding:0 0 8px;gap:5px}
   .chat-composer{padding:0}
