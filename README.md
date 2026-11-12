@@ -77,7 +77,30 @@ not work — and **Kojo** answers after live web research.
   sheet** tab keeps the fully offline repertorisation.
 
 The **Form & case sheet** tab keeps the original manual workflow, case sheet,
-saved history and export.
+saved history and export — and its Top 5 is now repertorised against the whole
+bundled database rather than remedy prose alone:
+
+- **Every rubric is scanned.** Each symptom you type is one clause; a bare
+  modality (`worse at night`, `from coffee`) folds into the symptom it modifies.
+  All 312,589 rubrics (OOREP publicum + the 238,160-rubric ext-repertory export)
+  are searched per clause, keeping the two best matches. Words are IDF-weighted
+  and prefix-matched (`red` finds `redness`), a multi-word clause must match at
+  least two of its words, and a chapter the case never mentions is penalised so
+  a sore throat cannot match under *Eye*.
+- **Grades are summed, coverage is tracked.** The grades printed on the winning
+  rubrics (`Bry:3`) are summed per remedy, with the alternate rubric weighted
+  0.6, giving each remedy a point total and a `symptoms matched` count. This
+  becomes a component of the score out of 30 (24 for how strongly the case leads
+  the database, 6 for coverage) and is shown on every card as
+  `DB rubrics n pts on k/N symptoms`, plus a `🗄️ DB repertorisation` line naming
+  the rubric chosen for each symptom.
+- **Rubric-only remedies can win.** Remedies graded by the rubrics but missing
+  from the 816-remedy catalogue and the ABC 763 index are added as candidates
+  (badge **DB rubrics**), so the Top 5 follows the repertory mass.
+
+The offline engine still verifies each candidate against Boericke/Kent/Phatak
+text for the `✓ MM-verified` / `⚠ weight only` badge, and the relationship check
+against already-given remedies still decides the final pick.
 
 ### Saved chats (continue / delete)
 
