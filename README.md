@@ -46,14 +46,18 @@ not work — and **Kojo** answers after live web research.
   shown under the answer; when the web returns nothing, the reply says so and
   reasons from the classical corpus. Boericke / Kent / Phatak and institutional
   pages outrank content farms and forums.
-- **Local database check.** Every turn also queries the bundled
-  `homeopathy.sqlite` export (`data/db_rag.js`, `data/db_mm.js`,
-  `data/boericke_full.js`): rubric wording with remedy grades, weighted by inverse
-  document frequency so rare keynote words outrank "worse/better/night", plus the
-  verbatim monographs of the remedies in play. Kojo must treat that as the
-  authoritative local record — no invented rubrics or grades — and the reply
-  carries a **Local database: n/5 remedies verified** line, flagging any remedy
-  that only exists in the wider materia medica.
+- **Local repertorisation.** Every turn splits the message into symptom clauses
+  and scans the bundled `homeopathy.sqlite` export (`data/db_rag.js`,
+  `data/db_mm.js`, `data/boericke_full.js`): each clause gets its best local
+  rubric(s) with graded remedies (IDF-weighted, so `cheek`/`teething` outrank
+  `worse`/`night`; prefix matching so `red` finds `redness`), then Kojo receives
+  the collective grade totals and symptom coverage. The prompt makes it weigh
+  individual fit against coverage, name the best single remedy with its reasoning,
+  and justify any departure from the totals. Grades may only be the ones printed
+  in that block — never invented.
+- **Visible check.** Each reply ends with `🗄️ Local database: n/5 remedies
+  verified`, flagging any Top 5 remedy that exists only in the wider materia
+  medica.
 - **The conversation is the case.** Every turn is sent back as history, so later
   questions ("why is Bryonia second?") keep the patient picture without repeating
   it.
