@@ -94,10 +94,14 @@ async function webSearch(request) {
   const n = Math.min(6, Math.max(1, Number(payload.n) || 4));
   const ua = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36', Accept: 'text/html' };
   const dbg = {};
+  // Hard per-request timeout: DDG can hang for 30s+ from datacenter IPs, which
+  // would stall the caller's whole answer. Fail fast, move to the next source.
+  const tmo = (ms) => AbortSignal.timeout(ms);
+  const keywords = q.toLowerCase().split(/\s+/).filter(t => t.replace(/[^a-z0-9]/g, '').length > 3);
   // Attempt 1: DuckDuckGo lite results (href precedes class="", single quotes,
   // links are protocol-relative //duckduckgo.com/l/?uddg=<encoded> redirects).
   try {
-    const ddg = await fetch('https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(q), { headers: ua, cf: { cacheTtl: 300, cacheEverything: true } });
+    const ddg = await fetch('https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(q), { headers: ua, signal: tmo(3500), cf: { cacheTtl: 300, cacheEverything: true } });
     dbg.lite = ddg.status;
     if (ddg.ok) {
       const html = await ddg.text();
@@ -122,7 +126,7 @@ async function webSearch(request) {
   } catch (e) { dbg.lite = String(e && e.message || e); }
   // Attempt 2: DuckDuckGo HTML results (result__a / result__snippet markup).
   try {
-    const ddg2 = await fetch('https://duckduckgo.com/html/?q=' + encodeURIComponent(q), { headers: ua, cf: { cacheTtl: 300, cacheEverything: true } });
+    const ddg2 = await fetch('https://duckduckgo.com/html/?q=' + encodeURIComponent(q), { headers: ua, signal: tmo(3500), cf: { cacheTtl: 300, cacheEverything: true } });
     dbg.html = ddg2.status;
     if (ddg2.ok) {
       const html = await ddg2.text();
@@ -148,7 +152,7 @@ async function webSearch(request) {
   // natural-language queries can return zero hits).
   const wikiTry = async (terms, label) => {
     if (!terms.length) return null;
-    const wq = await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(terms) + '&format=json&srlimit=' + n, { headers: { 'User-Agent': 'HomeoAI-relay/1.0 (educational; contact rakeshmadhav111@gmail.com)' } });
+    const wq = await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(terms) + '&format=json&srlimit=' + n, { headers: { 'User-Agent': 'HomeoAI-relay/1.0 (educational; contact rakeshmadhav111@gmail.com)' }, signal: tmo(5000) });
     dbg['wiki_' + label] = wq.status;
     if (!wq.ok) return null;
     const j = await wq.json();
@@ -156,13 +160,19 @@ async function webSearch(request) {
       url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(String(r.title).replace(/ /g, '_')),
       title: r.title,
       snippet: stripTags(decodeEntities(r.snippet || '')).slice(0, 320),
-    }));
+    })).filter(r => {
+      // Wikipedia's search is fuzzy and will happily return unrelated pages for
+      // a long clinical query — keep only hits that mention a real query term.
+      if (!keywords.length) return true;
+      const hay = (r.title + ' ' + r.snippet).toLowerCase();
+      return keywords.some(t => hay.includes(t));
+    });
     return results.length ? results : null;
   };
   try {
     const short = q.split(/\s+/).filter(t => t.replace(/[^a-zA-Z0-9]/g, '').length > 2).slice(0, 3).join(' ');
     const wikiHit = (await wikiTry(q, 'full')) || (short && short !== q ? await wikiTry(short, 'trim') : null);
-    if (wikiHit) return json({ query: q, source: 'wikipedia', results: wikiHit }, 200, request);
+    if (wikiHit) return json({ query: q, source: 'wikipedia', results: wikiHit, debug: dbg }, 200, request);
   } catch (e) { dbg.wiki_err = String(e && e.message || e); }
   return json({ error: { message: 'Web search unavailable' }, debug: dbg }, 502, request);
 }

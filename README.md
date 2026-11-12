@@ -34,74 +34,45 @@ and only curated-vocabulary names may create new remedy rows — OCR debris is s
 
 ## Chat consultation
 
-`recommender.html` opens on a **chat consultation** tab. The assistant interviews
-the patient in plain language — name, age, gender, main complaint, duration,
-sensation, modalities (what makes it better or worse), associated symptoms,
-cause, mood and previous medicines — then ranks remedies.
+`recommender.html` opens on a **Clinical chat** tab. There is no interview: type
+anything — a full case, a question about a remedy, feedback on a remedy that did
+not work — and **Kojo** answers after live web research.
 
-- **Fully offline.** The interview is a small rule-based state machine in the page;
-  no API key, no network call, nothing leaves the browser.
-- **One engine.** `recommend()` is driven by filling the hidden form fields, so
-  scores, potency, stock badges, relationship checks and the AI panels are the
-  same as the form view.
-- **Free text works.** `"My son Aarav is 6 years old, has cough and running nose
-  for 3 days, worse at night"` prefills name, age, gender, complaint, duration and
-  modality in one go; later steps accept sentences and pull out symptoms and
-  modalities. Quick-reply chips cover the common answers.
+- **Web research first.** The relay's keyless `/v1/web` route searches live
+  sources (DuckDuckGo, Wikipedia fallback) using the meaning-bearing keywords of
+  the message, or the current ranking when the message is bare. The sources used
+  are shown under the answer; when the web returns nothing, the reply says so and
+  reasons from the classical corpus.
+- **The conversation is the case.** Every turn is sent back as history, so later
+  questions ("why is Bryonia second?") keep the patient picture without repeating
+  it.
+- **Final Top 5.** When a case is described, Kojo analyses the totality
+  (collectively) and each symptom to its Kent-style rubric (individually), then
+  closes with a numbered **Final Top 5** drawn from the entire classical materia
+  medica — not just the offline library. Pure definition or comparison questions
+  are answered without a ranking.
+- **Stance.** Homeopathy is framed as a supportive companion alongside regular
+  medical care, never a replacement; no placebo/evidence lectures even when
+  asked directly.
 - **Safety screen on every message.** Red-flag phrases (breathing difficulty,
   chest pain, unconsciousness, convulsions, severe bleeding, stiff neck, stroke
-  signs, severe dehydration, allergic swelling, self-harm) raise an urgent card,
-  and remedies are withheld behind a **Show remedies anyway (educational)** gate.
-- **Refine later.** After a ranking you can add symptoms in the chat and it
-  re-ranks, or open **Full reasoning** to see the full case sheet in the form view.
+  signs, severe dehydration, allergic swelling, self-harm) raise an urgent card
+  immediately; the answer still follows.
+- **Degradation.** With online assist off the chat says so, and the **Form & case
+  sheet** tab keeps the fully offline repertorisation.
 
 The **Form & case sheet** tab keeps the original manual workflow, case sheet,
 saved history and export.
 
-### Kojo in the chat
-
-When online assist is on, anything the interview can't handle routes to **Kojo**
-inside the consultation itself: typed questions ("what is aconite?", "why worse
-at night?"), meta questions, and answers the symptom extractor can't parse (in
-the complaint / sensation / modality steps a Kojo handoff is shown while the
-question stays open). The interview state never advances on a Kojo reply, and
-with online assist off (or the relay unreachable) the app stays fully offline
-and rule-based as before.
-
-### Deep AI analysis (web-verified re-rank)
-
-Immediately after the offline Top 5 appears, the chat automatically runs a
-**deep analysis** through the relay while online assist is on:
-
-1. **Internet verification** — the relay (`/v1/web`, keyless) searches live
-   sources (DuckDuckGo, Wikipedia fallback) for materia-medica / repertory
-   pages matching the case's chief symptom and modality. First hits typically
-   include Boericke entries (homeoint.org, materiamedica.info).
-2. **Collective analysis** — Kojo reads the whole case as a totality (chief
-   complaint, modalities, concomitants, cause, mind, age/sex) and interprets
-   picture, miasm and keynote pattern.
-3. **Individual repertorisation** — each recorded symptom is mapped to its
-   Kent-style rubric with leading remedies per rubric.
-4. **Full-corpus verification** — Kojo checks the offline Top 5 against the
-   *entire* classical materia medica (every remedy on record, beyond the
-   small offline library) and produces a **Final Top 5**, marking remedies
-   absent from the offline database with an asterisk.
-5. The verified list is stored on the case, so later chat questions and the
-   AI-verification step reason from the same Final Top 5.
-
-The offline ranking always remains displayed and stands as fallback if the
-AI phase fails; failures never break the interview flow.
-
 ### Saved chats (continue / delete)
 
-Every chat consultation is auto-saved to the browser (`homeo_chat_history`,
-last 30 chats): the full transcript plus the interview state (step, symptoms,
-modalities, flags, AI Top 5). The **🕘 Saved** button in the chat header lists
-them — **Continue** restores the conversation exactly where it left off
-(including recomputing the offline ranking so Full reasoning still works, and
-keeping the AI-verified Top 5 for follow-up questions), **Delete** removes a
-chat permanently. Continuing a restored chat updates the same entry rather
-than creating duplicates. Storage is local to the browser only.
+Every chat is auto-saved to the browser (`homeo_chat_history`, last 30 chats):
+the full transcript plus the model message history and the last **Final Top 5**.
+The **🕘 Saved** button in the chat header lists them — **Continue** restores the
+conversation transcript, keeps the ranking for follow-up grounding, and puts the
+cursor back in the composer; **Delete** removes a chat permanently. Continuing a
+restored chat updates the same entry rather than creating duplicates. Storage is
+local to the browser only.
 
 ## AI settings
 
