@@ -3694,8 +3694,12 @@ async function chatKojoAnswer(userText){
       +'Keep it tight: about 250–400 words unless depth is genuinely needed. Markdown-light: **bold** and short lists. Never act as a prescribing physician.'
       +(research.block?('\n\n'+research.block):'\n\n(no web results returned this turn — verify from classical knowledge and say so.)')
       +(local.block?('\n'+local.block):'');
+  // Assistant turns keep their full length: the Final Top 5 is printed at the
+  // end of a reply, so a short cap would amputate the model's own ranking and
+  // make follow-ups ("why is Bryonia third?") believe no ranking was ever given.
   var history=CHAT.msgs.slice(-13,-1).map(function(m){
-    return {role:(m.role==='assistant'?'assistant':'user'), content:String(m.content||'').slice(0,1200)};
+    var isBot=m.role==='assistant';
+    return {role:(isBot?'assistant':'user'), content:String(m.content||'').slice(0, isBot?6000:1200)};
   });
   var t0=Date.now();
   var _ab=typeof AbortController!=='undefined' ? new AbortController() : null;
