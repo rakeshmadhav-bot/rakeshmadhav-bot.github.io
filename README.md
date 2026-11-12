@@ -38,11 +38,14 @@ and only curated-vocabulary names may create new remedy rows — OCR debris is s
 anything — a full case, a question about a remedy, feedback on a remedy that did
 not work — and **Kojo** answers after live web research.
 
-- **Web research first.** The relay's keyless `/v1/web` route searches live
-  sources (DuckDuckGo, Wikipedia fallback) using the meaning-bearing keywords of
-  the message, or the current ranking when the message is bare. The sources used
-  are shown under the answer; when the web returns nothing, the reply says so and
-  reasons from the classical corpus.
+- **Web research first.** The relay's keyless `/v1/web` route runs its sources in
+  parallel (DuckDuckGo lite, DuckDuckGo HTML, Wikipedia), merges and de-duplicates
+  the hits, then fetches the readable text of the top pages so Kojo correlates real
+  content rather than snippets. Two searches go out per turn: the message's
+  meaning-bearing keywords, and the remedies currently ranked. Sources used are
+  shown under the answer; when the web returns nothing, the reply says so and
+  reasons from the classical corpus. Boericke / Kent / Phatak and institutional
+  pages outrank content farms and forums.
 - **The conversation is the case.** Every turn is sent back as history, so later
   questions ("why is Bryonia second?") keep the patient picture without repeating
   it.

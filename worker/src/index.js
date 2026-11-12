@@ -86,95 +86,147 @@ function decodeEntities(text) {
   for (const [ent, ch] of Object.entries(map)) out = out.split(ent).join(ch);
   return out.replace(/&#(\d+);/g, (_, d) => { try { return String.fromCharCode(Number(d)); } catch { return ' '; } });
 }
+// Readable text of a result page, so the model correlates real content instead
+// of search snippets. Scripts, styling, navigation and footers carry no signal.
+function readable(html) {
+  return decodeEntities(String(html)
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
+    .replace(/<header[\s\S]*?<\/header>/gi, ' ')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
+    .replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+const PAGE_UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36', Accept: 'text/html,text/plain' };
+async function readPage(url) {
+  const r = await fetch(url, { headers: PAGE_UA, redirect: 'follow', signal: AbortSignal.timeout(5000) });
+  if (!r.ok) return '';
+  const ct = (r.headers.get('content-type') || '').toLowerCase();
+  if (ct && !/text\/html|text\/plain/.test(ct)) return '';
+  const html = await r.text();
+  if (html.length > 600000) return '';
+  return readable(html).slice(0, 1800);
+}
+
 async function webSearch(request) {
   let payload;
   try { payload = await request.json(); } catch (e) { return json({ error: { message: 'Invalid JSON body' } }, 400, request); }
   const q = typeof payload.q === 'string' ? payload.q.trim().slice(0, 240) : '';
   if (q.length < 3) return json({ error: { message: 'Query too short' } }, 400, request);
-  const n = Math.min(6, Math.max(1, Number(payload.n) || 4));
+  const n = Math.min(8, Math.max(1, Number(payload.n) || 5));
+  const read = Math.min(3, Math.max(0, Number(payload.read) || 0));
   const ua = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36', Accept: 'text/html' };
   const dbg = {};
-  // Hard per-request timeout: DDG can hang for 30s+ from datacenter IPs, which
-  // would stall the caller's whole answer. Fail fast, move to the next source.
   const tmo = (ms) => AbortSignal.timeout(ms);
   const keywords = q.toLowerCase().split(/\s+/).filter(t => t.replace(/[^a-z0-9]/g, '').length > 3);
-  // Attempt 1: DuckDuckGo lite results (href precedes class="", single quotes,
-  // links are protocol-relative //duckduckgo.com/l/?uddg=<encoded> redirects).
-  try {
-    const ddg = await fetch('https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(q), { headers: ua, signal: tmo(3500), cf: { cacheTtl: 300, cacheEverything: true } });
-    dbg.lite = ddg.status;
-    if (ddg.ok) {
-      const html = await ddg.text();
-      const linkRe = /<a\b([^>]*class='result-link'[^>]*|[^>]*class="result-link"[^>]*)>([\s\S]*?)<\/a>/g;
-      const snipRe = /<td[^>]*class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/g;
-      const hits = [];
-      let m;
-      while ((m = linkRe.exec(html)) && hits.length < n) {
-        const attrs = m[1];
-        let href = (attrs.match(/href=['"]([^'"]+)['"]/) || [])[1] || '';
-        if (href.includes('duckduckgo.com/y.js')) continue; // ads
-        const uddg = href.match(/[?&]uddg=([^&'"]+)/);
-        if (uddg) href = decodeURIComponent(uddg[1]);
-        if (href.startsWith('//')) href = 'https:' + href;
-        if (!/^https?:/i.test(href)) continue;
-        hits.push({ url: href, title: stripTags(decodeEntities(m[2])), snippet: '' });
-      }
-      let si = 0;
-      while ((m = snipRe.exec(html)) && si < hits.length) { hits[si].snippet = stripTags(decodeEntities(m[1])).slice(0, 320); si++; }
-      if (hits.length) return json({ query: q, source: 'duckduckgo', results: hits }, 200, request);
+
+  // DuckDuckGo lite (href precedes class, protocol-relative /l/?uddg= redirects).
+  const ddgLite = async () => {
+    const r = await fetch('https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(q), { headers: ua, signal: tmo(3500), cf: { cacheTtl: 300, cacheEverything: true } });
+    dbg.lite = r.status;
+    if (!r.ok) return [];
+    const html = await r.text();
+    const linkRe = /<a\b([^>]*class='result-link'[^>]*|[^>]*class="result-link"[^>]*)>([\s\S]*?)<\/a>/g;
+    const snipRe = /<td[^>]*class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/g;
+    const hits = []; let m;
+    while ((m = linkRe.exec(html)) && hits.length < n) {
+      let href = (m[1].match(/href=['"]([^'"]+)['"]/) || [])[1] || '';
+      if (href.includes('duckduckgo.com/y.js')) continue;
+      const uddg = href.match(/[?&]uddg=([^&'"]+)/);
+      if (uddg) href = decodeURIComponent(uddg[1]);
+      if (href.startsWith('//')) href = 'https:' + href;
+      if (!/^https?:/i.test(href)) continue;
+      hits.push({ url: href, title: stripTags(decodeEntities(m[2])), snippet: '' });
     }
-  } catch (e) { dbg.lite = String(e && e.message || e); }
-  // Attempt 2: DuckDuckGo HTML results (result__a / result__snippet markup).
-  try {
-    const ddg2 = await fetch('https://duckduckgo.com/html/?q=' + encodeURIComponent(q), { headers: ua, signal: tmo(3500), cf: { cacheTtl: 300, cacheEverything: true } });
-    dbg.html = ddg2.status;
-    if (ddg2.ok) {
-      const html = await ddg2.text();
-      const linkRe = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-      const snipRe = /class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-      const hits = [];
-      let m;
-      while ((m = linkRe.exec(html)) && hits.length < n) {
-        let href = decodeEntities(m[1]);
-        if (href.includes('duckduckgo.com/y.js')) continue; // ads
-        const uddg = href.match(/uddg=([^&]+)/);
-        if (uddg) href = decodeEntities(uddg[1]);
-        if (!/^https?:/i.test(href)) continue;
-        hits.push({ url: href, title: stripTags(decodeEntities(m[2])), snippet: '' });
-      }
-      let si = 0;
-      while ((m = snipRe.exec(html)) && si < hits.length) { hits[si].snippet = stripTags(decodeEntities(m[1])).slice(0, 320); si++; }
-      if (hits.length) return json({ query: q, source: 'duckduckgo', results: hits }, 200, request);
+    let si = 0;
+    while ((m = snipRe.exec(html)) && si < hits.length) { hits[si].snippet = stripTags(decodeEntities(m[1])).slice(0, 320); si++; }
+    return hits;
+  };
+
+  // DuckDuckGo HTML endpoint (result__a / result__snippet markup).
+  const ddgHtml = async () => {
+    const r = await fetch('https://duckduckgo.com/html/?q=' + encodeURIComponent(q), { headers: ua, signal: tmo(3500), cf: { cacheTtl: 300, cacheEverything: true } });
+    dbg.html = r.status;
+    if (!r.ok) return [];
+    const html = await r.text();
+    const linkRe = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+    const snipRe = /class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+    const hits = []; let m;
+    while ((m = linkRe.exec(html)) && hits.length < n) {
+      let href = decodeEntities(m[1]);
+      if (href.includes('duckduckgo.com/y.js')) continue;
+      const uddg = href.match(/uddg=([^&]+)/);
+      if (uddg) href = decodeEntities(uddg[1]);
+      if (!/^https?:/i.test(href)) continue;
+      hits.push({ url: href, title: stripTags(decodeEntities(m[2])), snippet: '' });
     }
-  } catch (e) { dbg.html = String(e && e.message || e); }
-  // Attempt 3: Wikipedia API — first with the full query, then trimmed to the
-  // first 3 significant words (Wikipedia full-text search is AND-ish; long
-  // natural-language queries can return zero hits).
+    let si = 0;
+    while ((m = snipRe.exec(html)) && si < hits.length) { hits[si].snippet = stripTags(decodeEntities(m[1])).slice(0, 320); si++; }
+    return hits;
+  };
+
+  // Wikipedia API: full query first, then the first 3 significant words.
   const wikiTry = async (terms, label) => {
-    if (!terms.length) return null;
-    const wq = await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(terms) + '&format=json&srlimit=' + n, { headers: { 'User-Agent': 'HomeoAI-relay/1.0 (educational; contact rakeshmadhav111@gmail.com)' }, signal: tmo(5000) });
-    dbg['wiki_' + label] = wq.status;
-    if (!wq.ok) return null;
-    const j = await wq.json();
-    const results = ((j.query || {}).search || []).map(r => ({
-      url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(String(r.title).replace(/ /g, '_')),
-      title: r.title,
-      snippet: stripTags(decodeEntities(r.snippet || '')).slice(0, 320),
-    })).filter(r => {
-      // Wikipedia's search is fuzzy and will happily return unrelated pages for
-      // a long clinical query — keep only hits that mention a real query term.
+    if (!terms) return [];
+    const r = await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(terms) + '&format=json&srlimit=' + n, { headers: { 'User-Agent': 'HomeoAI-relay/1.0 (educational; contact rakeshmadhav111@gmail.com)' }, signal: tmo(5000) });
+    dbg['wiki_' + label] = r.status;
+    if (!r.ok) return [];
+    const j = await r.json();
+    return ((j.query || {}).search || []).map(x => ({
+      url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(String(x.title).replace(/ /g, '_')),
+      title: x.title,
+      snippet: stripTags(decodeEntities(x.snippet || '')).slice(0, 320),
+    })).filter(x => {
       if (!keywords.length) return true;
-      const hay = (r.title + ' ' + r.snippet).toLowerCase();
+      const hay = (x.title + ' ' + x.snippet).toLowerCase();
       return keywords.some(t => hay.includes(t));
     });
-    return results.length ? results : null;
   };
-  try {
+  // Wikipedia full-text search is AND-ish: a natural-language clinical query
+  // ("Chamomilla irritability teething infant") returns zero hits. So also try
+  // the individual keywords, in parallel, and take the first group with hits.
+  const wiki = async () => {
     const short = q.split(/\s+/).filter(t => t.replace(/[^a-zA-Z0-9]/g, '').length > 2).slice(0, 3).join(' ');
-    const wikiHit = (await wikiTry(q, 'full')) || (short && short !== q ? await wikiTry(short, 'trim') : null);
-    if (wikiHit) return json({ query: q, source: 'wikipedia', results: wikiHit, debug: dbg }, 200, request);
-  } catch (e) { dbg.wiki_err = String(e && e.message || e); }
-  return json({ error: { message: 'Web search unavailable' }, debug: dbg }, 502, request);
+    const terms = [...new Set([q, short, ...keywords.slice(0, 4)].filter(Boolean))];
+    const tries = await Promise.allSettled(terms.map((t, i) => wikiTry(t, i === 0 ? 'full' : 'k' + i)));
+    for (const t of tries) if (t.status === 'fulfilled' && t.value.length) return t.value;
+    return [];
+  };
+
+  // All sources in parallel — the answer waits on the slowest, not the sum.
+  const settled = await Promise.allSettled([ddgLite(), ddgHtml(), wiki()]);
+  const labels = ['duckduckgo', 'duckduckgo', 'wikipedia'];
+  const merged = [];
+  settled.forEach((s, i) => {
+    if (s.status === 'rejected') { dbg['src' + i] = String(s.reason && s.reason.message || s.reason); return; }
+    (s.value || []).forEach(x => {
+      if (!x || !x.url || merged.some(y => y.url === x.url)) return;
+      merged.push(Object.assign({}, x, { via: labels[i] }));
+    });
+  });
+  if (!merged.length) return json({ error: { message: 'Web search unavailable' }, debug: dbg }, 502, request);
+
+  // Classical/reference pages first, so full-text reading is worth the latency.
+  const preferred = /homeoint\.org|materiamedica|homeopath|wikipedia\.org|nih\.gov|ncbi\.nlm\.nih\.gov|pubmed|sciencedirect/i;
+  const ordered = merged.map((x, i) => ({ x, i }))
+    .sort((a, b) => (preferred.test(a.x.url) ? 0 : 1) - (preferred.test(b.x.url) ? 0 : 1) || a.i - b.i)
+    .map(o => o.x)
+    .slice(0, n);
+
+  if (read) {
+    const targets = ordered.slice(0, read).filter(x => /^https?:/i.test(x.url));
+    const pages = await Promise.allSettled(targets.map(x => readPage(x.url)));
+    pages.forEach((p, i) => {
+      if (p.status === 'fulfilled' && p.value) targets[i].content = p.value;
+      else if (p.status === 'rejected') dbg['read' + i] = String(p.reason && p.reason.message || p.reason);
+    });
+  }
+
+  const sources = [...new Set(ordered.map(x => x.via))];
+  return json({ query: q, source: sources.join(' + '), sources, results: ordered, debug: dbg }, 200, request);
 }
 
 export default {

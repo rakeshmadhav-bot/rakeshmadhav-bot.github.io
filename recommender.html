@@ -3333,9 +3333,9 @@ function chatKojoGrounding(){
 }
 /* --------- Deep AI analysis: web-verified, all-materia-medica re-rank --------- */
 var AI_RELAY_BASE=AI_RELAY_URL.replace('/v1/chat/completions','');
-async function chatWebSearch(q,n){
+async function chatWebSearch(q,n,read){
   try{
-    var r=await fetch(AI_RELAY_BASE+'/v1/web',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:q,n:n||3})});
+    var r=await fetch(AI_RELAY_BASE+'/v1/web',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:q,n:n||3,read:read||0})});
     if(!r.ok) return null;
     var j=await r.json();
     if(!j.results||!j.results.length) return null;
@@ -3491,24 +3491,37 @@ function chatRecentUserTexts(n){
   return out;
 }
 async function chatResearch(text){
-  // Search engines want a few keywords, not a whole paragraph. Fall back to the
-  // current ranking when the message itself carries no usable terms.
+  // Two searches in parallel: the message's own keywords, plus the remedies
+  // currently ranked (checking them in the classical sources). Search engines
+  // want a few keywords, not a paragraph.
   var kw=chatKeywords(text,4);
   var ranked=(CHAT.aiTop5||[]).slice(0,2);
-  var q=kw.length>=2 ? kw.join(' ')
-    : (ranked.length ? ranked.join(' ')+' materia medica boericke kent' : 'homeopathy materia medica');
-  var w=await Promise.race([
-    chatWebSearch(q,4),
-    new Promise(function(r){ setTimeout(function(){ r(null); },16000); })
-  ]);
-  var block='', sources=[];
-  if(w&&w.results&&w.results.length){
-    sources.push(w.source);
-    block+='\nWEB SEARCH ('+w.source+') — query "'+q+'"\n';
-    w.results.forEach(function(x){
-      block+='  ['+(x.title||'')+'] '+String(x.snippet||'').slice(0,240)+' ('+(x.url||'')+')\n';
-    });
+  var low=String(text||'').toLowerCase();
+  var queries=[];
+  if(kw.length>=2) queries.push(kw.join(' '));
+  if(ranked.length && !ranked.every(function(r){ return low.indexOf(String(r).toLowerCase().split(' ')[0])>=0; })){
+    queries.push(ranked.join(' ')+' materia medica boericke kent');
   }
+  if(!queries.length) queries.push(ranked.length ? ranked.join(' ')+' materia medica boericke kent' : 'homeopathy materia medica');
+  queries=queries.slice(0,2);
+  var webs=await Promise.all(queries.map(function(q){
+    return Promise.race([
+      chatWebSearch(q,5,1),
+      new Promise(function(r){ setTimeout(function(){ r(null); },20000); })
+    ]);
+  }));
+  var block='', sources=[], seen={};
+  webs.forEach(function(w,i){
+    if(!w||!w.results||!w.results.length) return;
+    if(sources.indexOf(w.source)<0) sources.push(w.source);
+    block+='\nSEARCH '+(i+1)+' — query "'+queries[i]+'" ('+w.source+')\n';
+    w.results.forEach(function(x){
+      if(!x||!x.url||seen[x.url]) return;
+      seen[x.url]=1;
+      block+='  ['+(x.title||'')+'] '+String(x.snippet||'').slice(0,240)+' ('+x.url+')\n';
+      if(x.content) block+='    PAGE TEXT: '+String(x.content).slice(0,900)+'\n';
+    });
+  });
   return {block:block, sources:sources};
 }
 
@@ -3528,10 +3541,11 @@ async function chatKojoAnswer(userText){
       +'All clinical reasoning must come strictly from classical sources: materia medica, repertories and cured-case records. If the classics are silent, say what they do cover and give supportive-care suggestions; do not substitute modern skeptical opinion. '
       +'The ONLY warning permitted unsolicited is a genuine emergency red flag, then advise urgent medical care. '
       +'There is no interview here. The user talks freely and the whole conversation is the case record: pull out the patient details and symptoms yourself as they appear across the turns, and carry them forward. '
-      +'You are given live internet search results below. Use them to check remedies, rubrics and classical entries, name the classical source you relied on (e.g. "Boericke, Bryonia alba"), and say plainly when the web added nothing. '
+      +'You are given live internet search results below (search hits plus the readable text of the top pages). CORRELATE them with your own classical knowledge before answering: verify remedy pictures, keynotes, rubrics and potencies against them, name the source you relied on (e.g. "Boericke, Bryonia alba"), and correct yourself if a source exposes a factual error. Trust Boericke / Kent / Phatak and peer-reviewed or institutional pages over content farms, forums, marketing and AI-generated blogs; if the web is irrelevant or contradicts the classical record, say so briefly and keep the classical position. '
       +'Answer whatever is asked — materia medica, remedy comparison, potency and repetition, a remedy that failed, a full case analysis. '
       +'When the message describes a patient or symptoms, analyse COLLECTIVELY (totality, modalities, causation, mind, miasm) and INDIVIDUALLY (each symptom to its Kent-style rubric), then ALWAYS close with a numbered **Final Top 5** drawn from the ENTIRE classical materia medica — every remedy on record, not a small library — one line of constitutional reasoning each. '
-      +'Never withhold that repertorisation. You may advise medical assessment where it is genuinely warranted, but the classical analysis and the Final Top 5 must still be delivered in the same reply — a referral never replaces the analysis. '
+      +'Never withhold that repertorisation. The classical analysis and the Final Top 5 must be delivered in the same reply — a referral never replaces the analysis. '
+      +'Do not send ordinary, common, self-limiting complaints (teething, colic, colds, mild fever, functional gut symptoms, period pain) to a doctor: answer them as a normal consultation. Reserve medical advice for a genuine emergency red flag. '
       +'Do not stall by requesting more information: rank from what is given, from the conversation so far, and state briefly which missing detail would change the ranking. '
       +'If this turn is purely a definition or a remedy comparison with no patient, answer directly and skip the Top 5. '
       +'Keep it tight: about 250–400 words unless depth is genuinely needed. Markdown-light: **bold** and short lists. Never act as a prescribing physician.'
