@@ -15,6 +15,19 @@ const ALLOWED_ORIGINS = new Set([
   'http://localhost:8000',
   'http://127.0.0.1:8000',
 ]);
+// Loopback on any port and cloud preview hosts, so the site can be tested
+// locally or in a preview build without editing this list. Both are the
+// owner's own pages; nothing here reaches a third party.
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^http:\/\/localhost(:\d{1,5})?$/,
+  /^http:\/\/127\.0\.0\.1(:\d{1,5})?$/,
+  /^https:\/\/[a-z0-9-]+\.style\.dev$/,
+];
+function originAllowed(origin) {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  return ALLOWED_ORIGIN_PATTERNS.some(re => re.test(origin));
+}
 
 const CORS = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -26,7 +39,7 @@ const CORS = {
 function corsHeaders(request) {
   const headers = new Headers(CORS);
   const origin = request.headers.get('Origin');
-  if (origin && ALLOWED_ORIGINS.has(origin)) headers.set('Access-Control-Allow-Origin', origin);
+  if (origin && originAllowed(origin)) headers.set('Access-Control-Allow-Origin', origin);
   return headers;
 }
 
@@ -237,13 +250,13 @@ export default {
     if (url.pathname === '/v1/search') {
       if (request.method !== 'GET') return json({ error: { message: 'Method not allowed' } }, 405, request);
       const origin = request.headers.get('Origin');
-      if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: { message: 'Origin not allowed' } }, 403, request);
+      if (origin && !originAllowed(origin)) return json({ error: { message: 'Origin not allowed' } }, 403, request);
       return searchDatabase(url, env, request);
     }
     if (url.pathname === '/v1/web') {
       if (request.method !== 'POST') return json({ error: { message: 'Method not allowed' } }, 405, request);
       const origin = request.headers.get('Origin');
-      if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: { message: 'Origin not allowed' } }, 403, request);
+      if (origin && !originAllowed(origin)) return json({ error: { message: 'Origin not allowed' } }, 403, request);
       return webSearch(request);
     }
     if (url.pathname === '/v1/health') {
@@ -254,7 +267,7 @@ export default {
       return notFound(request);
     }
     const origin = request.headers.get('Origin');
-    if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: { message: 'Origin not allowed' } }, 403, request);
+    if (origin && !originAllowed(origin)) return json({ error: { message: 'Origin not allowed' } }, 403, request);
     if (!env.OPENROUTER_API_KEY && !env.KOJO_API_KEY) {
       return json({ error: { message: 'Relay key not configured' } }, 500, request);
     }

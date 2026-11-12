@@ -7,6 +7,7 @@ Static site (no build step, no server code) hosted on GitHub Pages.
 | `/` | Redirect to the recommender |
 | `/recommender.html` | HomeoAI clinical recommender — chat consultation or form → Top 5 remedies (weightage) |
 | `/library.html` | Searchable browser view of the local SQLite database export |
+| `/styles/app.css` | Shared design system for both pages — tokens, type, cards, repertory grades, chat, dark mode, print |
 | `/database/homeopathy.sqlite` | Structured SQLite source database (used to generate the browser search export) |
 | `/data/homeopathy_search.json.gz` | Compressed read-only search index loaded by the static site |
 | `/data/` | JS/JSON indexes the recommender loads (~45 MB) |
@@ -104,13 +105,27 @@ against already-given remedies still decides the final pick.
 
 ### Saved chats (continue / delete)
 
-Every chat is auto-saved to the browser (`homeo_chat_history`, last 30 chats):
-the full transcript plus the model message history and the last **Final Top 5**.
-The **🕘 Saved** button in the chat header lists them — **Continue** restores the
-conversation transcript, keeps the ranking for follow-up grounding, and puts the
-cursor back in the composer; **Delete** removes a chat permanently. Continuing a
-restored chat updates the same entry rather than creating duplicates. Storage is
-local to the browser only.
+Every chat is auto-saved **on the device it was written on** (`homeo_chat_history`,
+last 30 chats): the full transcript plus the model message history and the last
+**Final Top 5**. Reopening the page resumes the most recent conversation
+automatically — on the same browser profile, on Chrome for Android and on a
+Windows PC alike — and **New chat** starts a fresh one without deleting the old
+record. Writes are flushed when the tab is hidden or closed, and if storage is
+full the oldest chats are dropped (then the saved HTML) so the current chat still
+saves. The **Saved** button lists them — **Continue** restores the transcript,
+keeps the ranking for follow-up grounding, and puts the cursor back in the
+composer; **Rename** gives a chat your own title in place (Enter saves, Escape
+cancels, an empty name falls back to the first question, and the name survives
+later auto-saves); **Delete** removes a chat permanently, and the **⋯** menu on any row offers
+**Export chat**. **Export all** in the panel header writes every chat at once.
+Either way the download is JSON — id, title, date, the message list and the
+readable transcript — named `homeoai-chat-<title>-YYYY-MM-DD.json` for one chat
+or `homeoai-chats-YYYY-MM-DD.json` for all, so a conversation can be moved to
+another device or kept outside the browser.
+
+Storage is `localStorage`: it lives in that browser profile for that site's
+origin. It is not synced between devices, and clearing site data, private
+windows, or opening the page from a different URL or `file://` starts empty.
 
 ## AI settings
 
