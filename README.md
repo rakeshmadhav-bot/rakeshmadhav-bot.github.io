@@ -46,6 +46,14 @@ not work — and **Kojo** answers after live web research.
   shown under the answer; when the web returns nothing, the reply says so and
   reasons from the classical corpus. Boericke / Kent / Phatak and institutional
   pages outrank content farms and forums.
+- **Local database check.** Every turn also queries the bundled
+  `homeopathy.sqlite` export (`data/db_rag.js`, `data/db_mm.js`,
+  `data/boericke_full.js`): rubric wording with remedy grades, weighted by inverse
+  document frequency so rare keynote words outrank "worse/better/night", plus the
+  verbatim monographs of the remedies in play. Kojo must treat that as the
+  authoritative local record — no invented rubrics or grades — and the reply
+  carries a **Local database: n/5 remedies verified** line, flagging any remedy
+  that only exists in the wider materia medica.
 - **The conversation is the case.** Every turn is sent back as history, so later
   questions ("why is Bryonia second?") keep the patient picture without repeating
   it.

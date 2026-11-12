@@ -3490,6 +3490,93 @@ function chatRecentUserTexts(n){
   }
   return out;
 }
+/* --------- Local database grounding: bundled homeopathy.sqlite export ------- */
+// Rubric evidence + verbatim monographs from the local record, so Kojo verifies
+// against the database instead of trusting memory or web snippets alone.
+var CHAT_LOCAL_GENERIC=new Set(['pain','pains','painful','worse','better','very','much','with','from','that','this','when','then','also','more','most','less','some','such','been','have','does','your','their','there','which','while','after','before','about','other','side','left','right','head','body','general','generalities']);
+function chatLocalIndex(){
+  if(!window.DB_RAG || !window.DB_RAG.rubrics) return null;
+  var base=(window.OOREP_RAG && window.OOREP_RAG.rubrics)||[], ext=window.DB_RAG.rubrics;
+  var key=base.length+':'+ext.length;
+  if(!window._CHAT_LOCAL || window._CHAT_LOCAL.key!==key){
+    var norm=function(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); };
+    var name={}, label={};
+    (window.BOERICKE_FULL||[]).forEach(function(r){
+      var k=norm(r.abbr); name[norm(r.name)]=k; label[k]=r.name;
+      if(r.common) name[norm(r.common)]=k;
+    });
+    (window.ABC_INDEX||[]).forEach(function(r){ if(!name[norm(r.name)]) name[norm(r.name)]=norm(r.abbr); });
+    Object.keys(window.DB_MM||{}).forEach(function(k){
+      name[norm(k)]=k;
+      if(!label[k]) label[k]=k.charAt(0).toUpperCase()+k.slice(1);
+    });
+    window._CHAT_LOCAL={key:key, corpus:base.concat(ext), name:name, label:label};
+  }
+  return window._CHAT_LOCAL;
+}
+function chatLocalKey(nm){
+  var idx=chatLocalIndex(); if(!idx || !nm) return '';
+  return idx.name[String(nm).toLowerCase().replace(/[^a-z0-9]/g,'')]||'';
+}
+function chatLocalGround(text){
+  var idx=chatLocalIndex();
+  if(!idx || !idx.corpus.length) return {block:'',rubrics:0,remedies:0};
+  var toks=chatKeywords(text,12).filter(function(t){ return t.length>=4 && !CHAT_LOCAL_GENERIC.has(t); });
+  if(toks.length<2) return {block:'',rubrics:0,remedies:0};
+  var N=idx.corpus.length, df={}, cand=[], i, j;
+  for(i=0;i<N;i++){
+    var txt=idx.corpus[i][0];
+    if(txt.length>260) continue;                        // long tables / concordances
+    var low=txt.toLowerCase(), matched=[];
+    for(j=0;j<toks.length;j++){ if(low.indexOf(toks[j])>=0) matched.push(toks[j]); }
+    if(!matched.length) continue;
+    var ws=low.split(/[^a-z0-9-]+/), set={}, keep=[];
+    for(j=0;j<ws.length;j++){ if(ws[j].length>=3) set[ws[j]]=1; }
+    for(j=0;j<matched.length;j++){ if(set[matched[j]]){ keep.push(matched[j]); df[matched[j]]=(df[matched[j]]||0)+1; } }
+    if(keep.length) cand.push({txt:txt, rems:idx.corpus[i][1], m:keep});
+  }
+  // IDF weighting: "night" is in thousands of rubrics, "cheek" in a handful.
+  var idf=function(q){ return Math.log(N/Math.max(1,df[q]||1)); };
+  var rare=Math.log(N/600);
+  var hits=cand.filter(function(c){ return c.m.length>=2 && c.m.some(function(q){ return idf(q)>=rare; }); });
+  hits.forEach(function(c){ c.s=0; for(var k=0;k<c.m.length;k++) c.s+=idf(c.m[k]); });
+  hits.sort(function(a,b){ return b.s-a.s; });
+  hits=hits.slice(0,7);
+  if(!hits.length) return {block:'',rubrics:0,remedies:0};
+  var bonus={};
+  hits.forEach(function(h){
+    String(h.rems||'').split(',').forEach(function(p){
+      var m=p.split(':'), k=String(m[0]||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      if(m.length<2 || !k) return;
+      bonus[k]=(bonus[k]||0)+(Number(m[1])||1)*h.s;
+    });
+  });
+  var ranked=Object.keys(bonus).sort(function(a,b){ return bonus[b]-bonus[a]; });
+  // Monographs worth quoting: top rubric remedies, plus any remedy named in the text.
+  var picks=[], flat=String(text||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  ranked.slice(0,8).forEach(function(k){ if(picks.length<4 && window.DB_MM[k] && picks.indexOf(k)<0) picks.push(k); });
+  Object.keys(idx.name).forEach(function(nm){
+    if(nm.length<6 || flat.indexOf(nm)<0) return;
+    var k=idx.name[nm];
+    if(window.DB_MM[k] && picks.indexOf(k)<0 && picks.length<6) picks.push(k);
+  });
+  var label=function(a){ return idx.label[a]||a; };
+  var block='\nLOCAL DATABASE — bundled homeopathy.sqlite: '+N.toLocaleString()+' repertory rubrics, '+Object.keys(window.DB_MM||{}).length+' remedy monographs (rubric grade 3 = strongest)\nRUBRIC EVIDENCE:\n';
+  hits.forEach(function(h){
+    var rems=[];
+    String(h.rems||'').split(',').forEach(function(p){
+      var m=p.split(':');
+      if(m.length===2) rems.push(label(String(m[0]).toLowerCase().replace(/[^a-z0-9]/g,''))+' ['+m[1]+']');
+    });
+    block+='- "'+h.txt.replace(/\s+/g,' ').slice(0,150)+'" — '+rems.slice(0,6).join(', ')+'\n';
+  });
+  if(picks.length){
+    block+='MONOGRAPHS (verbatim local record):\n';
+    picks.forEach(function(k){ block+='- '+label(k)+': '+String(window.DB_MM[k]).replace(/\s+/g,' ').slice(0,520)+'\n'; });
+  }
+  return {block:block, rubrics:hits.length, remedies:picks.length};
+}
+
 async function chatResearch(text){
   // Two searches in parallel: the message's own keywords, plus the remedies
   // currently ranked (checking them in the classical sources). Search engines
@@ -3533,7 +3620,11 @@ async function chatKojoAnswer(userText){
   chatStatus('Researching…', true);
   var research={block:'', sources:[]};
   try{ research=await chatResearch(userText); }catch(e){ console.warn('web research', e); }
-  if(webstat) webstat.textContent=research.block?('web sources: '+research.sources.join(' + ')):'no web results — answering from the classical corpus…';
+  // Local database check: rubric evidence + monographs from the bundled export.
+  var local={block:'', rubrics:0, remedies:0};
+  try{ local=chatLocalGround(chatRecentUserTexts(2).join(' ')+' '+userText); }catch(e){ console.warn('local database', e); }
+  if(webstat) webstat.textContent=(research.block?'web sources: '+research.sources.join(' + '):'no web results')
+    +(local.rubrics?' · local DB: '+local.rubrics+' rubrics / '+local.remedies+' monographs':'')+' — answering…';
   var sys='You are Kojo, the live AI inside HomeoAI, a classical-homeopathy clinical assistant. Tradition: Boericke / Kent / Phatak. '
       +'MANDATORY STANCE (never break it): homeopathy here is a SUPPORTIVE companion taken alongside regular medical care, never a replacement — mention that framing at most once and only if relevant. '
       +'Never import external evidence debates or append unsolicited disclaimers: no systematic reviews, no Cochrane/NHMRC citations, no placebo claims, no "lacks evidence", no "should not replace evidence-based care" lectures, no dilution math. '
@@ -3542,14 +3633,17 @@ async function chatKojoAnswer(userText){
       +'The ONLY warning permitted unsolicited is a genuine emergency red flag, then advise urgent medical care. '
       +'There is no interview here. The user talks freely and the whole conversation is the case record: pull out the patient details and symptoms yourself as they appear across the turns, and carry them forward. '
       +'You are given live internet search results below (search hits plus the readable text of the top pages). CORRELATE them with your own classical knowledge before answering: verify remedy pictures, keynotes, rubrics and potencies against them, name the source you relied on (e.g. "Boericke, Bryonia alba"), and correct yourself if a source exposes a factual error. Trust Boericke / Kent / Phatak and peer-reviewed or institutional pages over content farms, forums, marketing and AI-generated blogs; if the web is irrelevant or contradicts the classical record, say so briefly and keep the classical position. '
+      +'A LOCAL DATABASE extract is also supplied (the bundled homeopathy.sqlite export: rubric text with remedy grades, and verbatim monographs). Treat it as the authoritative local record: never invent a rubric or a grade, correct any claim the monograph text contradicts, and prefer its remedies when the rubric evidence matches. Quote the local wording verbatim when you put it in quotation marks; paraphrase without quotes. If a remedy you recommend is not in the local extract, say it comes from the wider classical materia medica. Where the local record supplies evidence, name it in brackets on that Final Top 5 line. '
       +'Answer whatever is asked — materia medica, remedy comparison, potency and repetition, a remedy that failed, a full case analysis. '
+      +'For classical practice questions (potency, repetition, remedy choice, repertorisation) answer directly from the classical record and the local database: give the customary potencies and schedule, never reply that you cannot give one, and do not turn the answer into a safety review, a toxicology lecture or a request for more information first. '
       +'When the message describes a patient or symptoms, analyse COLLECTIVELY (totality, modalities, causation, mind, miasm) and INDIVIDUALLY (each symptom to its Kent-style rubric), then ALWAYS close with a numbered **Final Top 5** drawn from the ENTIRE classical materia medica — every remedy on record, not a small library — one line of constitutional reasoning each. '
       +'Never withhold that repertorisation. The classical analysis and the Final Top 5 must be delivered in the same reply — a referral never replaces the analysis. '
       +'Do not send ordinary, common, self-limiting complaints (teething, colic, colds, mild fever, functional gut symptoms, period pain) to a doctor: answer them as a normal consultation. Reserve medical advice for a genuine emergency red flag. '
       +'Do not stall by requesting more information: rank from what is given, from the conversation so far, and state briefly which missing detail would change the ranking. '
       +'If this turn is purely a definition or a remedy comparison with no patient, answer directly and skip the Top 5. '
       +'Keep it tight: about 250–400 words unless depth is genuinely needed. Markdown-light: **bold** and short lists. Never act as a prescribing physician.'
-      +(research.block?('\n\n'+research.block):'\n\n(no web results returned this turn — verify from classical knowledge and say so.)');
+      +(research.block?('\n\n'+research.block):'\n\n(no web results returned this turn — verify from classical knowledge and say so.)')
+      +(local.block?('\n'+local.block):'');
   var history=CHAT.msgs.slice(-13,-1).map(function(m){
     return {role:(m.role==='assistant'?'assistant':'user'), content:String(m.content||'').slice(0,1200)};
   });
@@ -3621,8 +3715,16 @@ async function chatKojoAnswer(userText){
       while((mm=rr.exec(src))!==null && topNames.length<5){ topNames.push(mm[2].trim()); }
     }
     if(topNames.length>=3) CHAT.aiTop5=topNames;
+    // Visible check: which ranked remedies the local database actually holds.
+    if(topNames.length && live){
+      var miss=[];
+      topNames.forEach(function(n){ var k=chatLocalKey(n); if(!k || !window.DB_MM[k]) miss.push(n); });
+      live.innerHTML=(live.innerHTML||'')+'<div style="margin-top:8px;font-size:11.5px;opacity:.75">🗄️ Local database: '
+        +(topNames.length-miss.length)+'/'+topNames.length+' remedies verified'
+        +(miss.length?' · outside DB (<i>wider materia medica</i>): '+esc(miss.join(', ')):'')+'</div>';
+    }
     var secs=Math.round((Date.now()-t0)/1000);
-    chatStatus('Answered by '+cfg.via+' · '+secs+'s'+(research.sources.length?' · '+research.sources.join('+'):''));
+    chatStatus('Answered by '+cfg.via+' · '+secs+'s'+(research.sources.length?' · '+research.sources.join('+'):'')+(local.rubrics?' · DB '+local.rubrics+' rubrics':''));
   }catch(e){
     console.error('kojo', e);
     var aborted=/abort/i.test(String(e&&(e.message||e))||'');
