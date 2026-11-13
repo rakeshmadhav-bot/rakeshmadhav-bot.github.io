@@ -43,7 +43,7 @@
     <a class="sb-item" href="library.html">Library search</a>
   </nav>
   <div class="sb-recents" id="chatHistPanel">
-    <div class="sb-label"><span id="chatHistBtn">Recents</span><button type="button" class="sb-link" onclick="chatHistoryExport()">Export</button></div>
+    <div class="sb-label"><span id="chatHistBtn">Chats</span><button type="button" class="sb-link" onclick="chatHistoryExport()">Export</button></div>
     <div id="chatHistList" class="sb-list"></div>
   </div>
   <div class="sb-foot">
@@ -4013,8 +4013,12 @@ function chatPersistNow(){
   var arr=chatHistoryAll(), at=-1;
   for(var i=0;i<arr.length;i++){ if(arr[i].id===rec.id){ at=i; break; } }
   if(at>=0 && arr[at].title) rec.title=arr[at].title; // keep the name you gave it
+  if(at>=0 && arr[at].pinned) rec.pinned=true;        // and the pin
   if(at>=0) arr[at]=rec; else arr.unshift(rec);
-  arr.sort(function(a,b){ return b.savedAt-a.savedAt; });
+  arr.sort(function(a,b){
+    if(!!a.pinned!==!!b.pinned) return a.pinned?-1:1;
+    return b.savedAt-a.savedAt;
+  });
   if(arr.length>30) arr.length=30; // shortcut: hard cap 30 chats, drop oldest when full
   chatHistoryWrite(arr);
   chatHistoryRefreshBadge();
@@ -4026,21 +4030,35 @@ function chatHistoryToggle(){ chatHistoryRender(); document.body.classList.toggl
 function chatHistoryRefreshBadge(){
   var b=document.getElementById('chatHistBtn'); if(!b) return;
   var n=chatHistoryAll().length;
-  b.textContent=n?('Recents ('+n+')'):'Recents';
+  b.textContent=n?('Chats ('+n+')'):'Chats';
 }
 function chatHistoryRender(){
   var list=document.getElementById('chatHistList'); if(!list) return;
   var arr=chatHistoryAll();
   if(!arr.length){ list.innerHTML='<div class="chat-hist-empty">No saved chats yet. Anything you say here is kept on this device.</div>'; return; }
+  arr.sort(function(a,b){
+    if(!!a.pinned!==!!b.pinned) return a.pinned?-1:1;
+    return (b.savedAt||0)-(a.savedAt||0);
+  });
   list.innerHTML='';
+  var groupPinned=false, groupRest=false;
   arr.forEach(function(r){
+    if(r.pinned && !groupPinned){
+      groupPinned=true;
+      var gp=document.createElement('div'); gp.className='sb-group'; gp.textContent='Pinned';
+      list.appendChild(gp);
+    } else if(!r.pinned && groupPinned && !groupRest){
+      groupRest=true;
+      var gr=document.createElement('div'); gr.className='sb-group'; gr.textContent='Recents';
+      list.appendChild(gr);
+    }
     var st=r.state||{};
     var d=new Date(r.savedAt||Date.now());
     var firstUser='';
     (st.msgs||[]).forEach(function(m){ if(!firstUser && m.role==='user') firstUser=String(m.content||''); });
     var autoTitle=firstUser?firstUser.slice(0,70):'Chat';
     var item=document.createElement('div');
-    item.className='chat-hist-item';
+    item.className='chat-hist-item'+(r.pinned?' pinned':'');
     var title=document.createElement('div');
     title.className='chat-hist-title';
     title.textContent=r.title||autoTitle;
@@ -4056,7 +4074,8 @@ function chatHistoryRender(){
     more.setAttribute('aria-label','Chat actions'); more.setAttribute('aria-haspopup','true'); more.setAttribute('aria-expanded','false');
     var menu=document.createElement('div'); menu.className='chat-hist-more';
     menu.setAttribute('role','menu');
-    [['Export chat', function(){ chatHistoryExportOne(r.id); }],
+    [[r.pinned?'Unpin chat':'Pin to top', function(){ chatHistoryPin(r.id); }],
+     ['Export chat', function(){ chatHistoryExportOne(r.id); }],
      ['Rename', function(){ chatHistoryStartRename(r, title); }],
      ['Delete', function(){ if(confirm('Delete this saved chat?')) chatHistoryDelete(r.id); }]
     ].forEach(function(x){
@@ -4155,6 +4174,17 @@ function chatHistoryExportOne(id){
   if(!rec) return;
   chatExportDownload([chatExportRecord(rec)], chatExportSlug(rec));
   chatStatus('Exported this chat');
+}
+function chatHistoryPin(id){
+  var arr=chatHistoryAll(), hit=false;
+  arr.forEach(function(r){
+    if(r.id!==id) return;
+    if(r.pinned) delete r.pinned; else r.pinned=true;
+    hit=true;
+  });
+  if(!hit) return;
+  chatHistoryWrite(arr);
+  chatHistoryRender();
 }
 function closeAllHistMenus(except){
   document.querySelectorAll('.chat-hist-more.open').forEach(function(m){ if(m!==except) m.classList.remove('open'); });

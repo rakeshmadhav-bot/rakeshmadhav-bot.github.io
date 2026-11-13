@@ -627,6 +627,14 @@ body.library{background:var(--paper)}
 .sb-list .chat-hist-actions .btn-ghost{min-height:24px;font-size:11px;padding:2px 8px}
 .sb-list .chat-hist-more{top:32px;right:0}
 .sb-list .chat-hist-empty{padding:8px 10px;font-size:12px;line-height:1.5}
+.sb-group{
+  font-family:var(--sans);font-size:10px;font-weight:700;color:var(--muted);
+  letter-spacing:.06em;text-transform:uppercase;padding:8px 12px 3px;
+}
+.sb-group:first-child{padding-top:2px}
+.sb-list .chat-hist-item.pinned{
+  border-left:2px solid var(--accent);border-radius:0 8px 8px 0;padding-left:8px;
+}
 
 .mobile-bar{display:none}
 .sb-scrim{display:none}
