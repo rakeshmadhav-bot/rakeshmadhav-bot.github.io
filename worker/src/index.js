@@ -8,10 +8,10 @@
 // visitor can burn rate limits but cannot spend money.
 
 const UPSTREAM = 'https://openrouter.ai/api/v1/chat/completions';
-const REFERER = 'https://rakeshmadhav-bot.github.io';
+const REFERER = 'https://homeoai.github.io';
 const MAX_TOKENS = 1400;
 const ALLOWED_ORIGINS = new Set([
-  'https://rakeshmadhav-bot.github.io',
+  'https://homeoai.github.io',
   'http://localhost:8000',
   'http://127.0.0.1:8000',
 ]);

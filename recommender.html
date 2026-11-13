@@ -886,11 +886,11 @@ function aiOriginHint(err){
   if(!/failed to fetch|load failed|networkerror|network request failed/i.test(msg)) return '';
   var origin='', host='';
   try{ origin=location.origin; host=location.hostname; }catch(e){}
-  if(host && host!=='rakeshmadhav-bot.github.io'){
+  if(host && host!=='homeoai.github.io'){
     if(/^(localhost|127\.0\.0\.1|\[::1\])$/.test(host) || /\.style\.dev$/.test(host)){
-      return 'Live answers are blocked on '+origin+': the relay only accepts the published site. Open https://rakeshmadhav-bot.github.io/recommender.html — offline repertorisation keeps working here.';
+      return 'Live answers are blocked on '+origin+': the relay only accepts the published site. Open https://homeoai.github.io/recommender.html — offline repertorisation keeps working here.';
     }
-    return 'This page is opened from '+origin+', which the relay does not allow. Use https://rakeshmadhav-bot.github.io/recommender.html for live answers.';
+    return 'This page is opened from '+origin+', which the relay does not allow. Use https://homeoai.github.io/recommender.html for live answers.';
   }
   return 'The request never reached the relay — check the connection, then send it again.';
 }
