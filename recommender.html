@@ -276,56 +276,6 @@
   </div>
 
 </div>
-<div style="max-width:1240px;margin:0 auto 18px;padding:0 18px">
-  <div class="card">
-    <div class="card-head"><span><span class="step">03</span> &nbsp;Individual case sheet</span><span id="caseCount" style="font-size:11px;color:var(--muted)"></span></div>
-    <div class="card-body">
-      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end">
-        <div><label for="casePatient">Select patient</label><select id="casePatient" onchange="showCaseSheet()"><option value="">— Select —</option></select></div>
-        <div style="display:flex;gap:8px"><button class="btn-ghost" onclick="refreshPatientList();showCaseSheet()">Refresh</button><button class="btn-ghost" onclick="exportCSV()">Export CSV</button><button class="btn-ghost" onclick="downloadPatientFile()">Download patient file</button></div>
-      </div>
-      <div id="caseHeader" style="margin:12px 0;font-size:13px"></div>
-      <div id="caseTracker" style="margin-bottom:12px"></div>
-      <div id="reportsSection" style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <div style="font-weight:800;font-size:13px">Medical reports (CBP, blood glucose, MRI, ultrasound…)</div>
-          <button class="btn-ghost" onclick="document.getElementById('reportInput').click()">⬆ Upload reports</button>
-          <input type="file" id="reportInput" accept="image/*,application/pdf,.txt,.json,.csv" style="display:none" multiple onchange="handleReportUpload(this)">
-        </div>
-        <div id="reportList" style="margin-top:8px"></div>
-        <div id="reportResult" style="margin-top:8px;padding:10px 12px;background:var(--card2);border:1px dashed var(--border);border-radius:8px;font-size:12.5px;display:none"></div>
-      </div>
-      <div style="overflow-x:auto;margin-bottom:14px">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px">
-        <thead><tr style="background:var(--card2)">
-          <th scope="col" style="border:1px solid var(--border);padding:6px 8px">Date</th>
-          <th scope="col" style="border:1px solid var(--border);padding:6px 8px">Time</th>
-          <th scope="col" style="border:1px solid var(--border);padding:6px 8px;text-align:left">Symptoms</th>
-          <th scope="col" style="border:1px solid var(--border);padding:6px 8px;text-align:left">Medicine Given</th>
-          <th scope="col" style="border:1px solid var(--border);padding:6px 8px">Potency</th>
-          <th scope="col" style="border:1px solid var(--border);padding:6px 8px;text-align:left">Remarks</th>
-          <th scope="col" style="border:1px solid var(--border);padding:6px 8px"></th>
-        </tr></thead>
-        <tbody id="caseRows"><tr><td colspan="7" style="border:1px solid var(--border);padding:16px;text-align:center;color:var(--muted)">Select a patient above to open their case sheet</td></tr></tbody>
-      </table>
-      </div>
-      <div style="border-top:1px solid var(--border);padding-top:12px">
-        <div style="font-weight:800;font-size:13px;margin-bottom:8px">Add previous / given medicine to this case sheet</div>
-        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px">
-          <div><label for="csMed">Medicine</label><input id="csMed" placeholder="e.g. Sulphur"></div>
-          <div><label for="csPot">Potency</label><select id="csPot"><option>6C</option><option selected>30C</option><option>200C</option><option>1M</option><option>10M</option><option>LM</option></select></div>
-          <div><label for="csDate">Date</label><input id="csDate" type="date"></div>
-          <div><label for="csTime">Time</label><input id="csTime" type="time"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
-          <div><label for="csSymptoms">Symptoms / reason</label><input id="csSymptoms" placeholder="e.g. itching, red rash"></div>
-          <div><label for="csRemarks">Remarks</label><input id="csRemarks" placeholder="e.g. first prescription"></div>
-        </div>
-        <button class="btn" style="max-width:280px" onclick="addCaseMed()">Add to case sheet</button>
-      </div>
-    </div>
-  </div>
-</div>
 </div><!-- /formView -->
 
 </main>
@@ -859,7 +809,9 @@ function addCaseMed(){
   const h=getHistory(); const idx=caseRecordIndices(name); const latest=idx.length?h[idx[idx.length-1]]:{};
   h.push({name, age:latest.age||'', gender:latest.gender||'', symptoms:sym, givenMed:'', givenDate:'', givenTime:'', potency:pot, remarks:rem, selected:med, top1:'', weightage:'', relCheck:null, prevEntry:true, ts, top5:[]});
   saveHistory(h);
-  document.getElementById('csMed').value=''; document.getElementById('csSymptoms').value=''; document.getElementById('csRemarks').value='';
+  var cm=document.getElementById('csMed'); if(cm) cm.value='';
+  var cy=document.getElementById('csSymptoms'); if(cy) cy.value='';
+  var cr=document.getElementById('csRemarks'); if(cr) cr.value='';
   refreshPatientList(); showCaseSheet();
 }
 let editingIndex=null;

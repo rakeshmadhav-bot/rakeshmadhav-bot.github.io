@@ -97,8 +97,9 @@ not work — and **Kojo** answers after live web research.
 - **Degradation.** With online assist off the chat says so, and the **Form & case
   sheet** tab keeps the fully offline repertorisation.
 
-The **Form & case sheet** tab keeps the original manual workflow, case sheet,
-saved history and export — and its Top 5 is now repertorised against the whole
+The **Form & case sheet** tab keeps the original manual workflow — patient
+details in, Top 5 out, every visit saved to the case history (export it from the
+sidebar's **More** menu) — and its Top 5 is repertorised against the whole
 bundled database rather than remedy prose alone:
 
 - **Every rubric is scanned.** Each symptom you type is one clause; a bare
