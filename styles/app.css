@@ -680,6 +680,11 @@ body.library{background:var(--paper)}
 .kojo-p:last-child{margin-bottom:0}
 .kojo-p b{font-weight:600}
 .kojo-verify{margin-top:12px;font-size:11.5px;opacity:.75}
-.kojo-top5{margin-top:14px;display:grid;gap:8px}
-.kojo-rx{margin-top:0;background:var(--card2)}
-.kojo-top5 .rx-head{align-items:center}
+.kojo-top5{margin-top:14px;display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.kojo-rx{margin-top:0;background:var(--card2);padding:10px 12px}
+.kojo-top5 .rx-head{align-items:center;gap:7px}
+.kojo-top5 .rx-rank{font-size:11px;min-width:14px}
+.kojo-top5 .rx-name{font-size:14px}
+.kojo-top5 .rx-actions{margin-top:7px}
+.kojo-top5 .rx-btn{min-height:26px;font-size:11px;padding:4px 9px}
+@media(max-width:520px){.kojo-top5{grid-template-columns:1fr}}
