@@ -161,19 +161,15 @@ disclaimers, and keep any direct question about evidence within the case
 framework. Genuine emergency red flags are the only warning allowed to appear
 unsolicited.
 
-Setup can run on **OpenRouter** (free
-models) or **Kojo** (`https://api.kojo.sh/v1`, model `kojo` — standard OpenAI
-chat-completions API), chosen under Provider in **AI Settings**.
+Everything AI — chat answers and the **Run AI Verification** pass — runs on
+**Kojo** (`https://api.kojo.sh/v1`, model `kojo`, standard OpenAI
+chat-completions API). It is the only provider in **AI Settings**.
 
 Calls go through a **built-in relay** — the Cloudflare Worker in
-[`worker/`](worker/) holds the OpenRouter API key (and optionally `KOJO_API_KEY`)
-as encrypted Worker secrets, so the page ships with **no key at all** and
-visitors need none to use it. The relay refuses every OpenRouter model that
-isn't `:free`, so it cannot be used to spend money (rate limits only).
-
-Default model: `nvidia/nemotron-3.5-lightning:free` via OpenRouter. Pasting
-your own key in **AI Settings** bypasses the relay and bills your account
-(stored in your browser's `localStorage` only).
+[`worker/`](worker/) holds `KOJO_API_KEY` as an encrypted Worker secret, so the
+page ships with **no key at all** and visitors need none to use it. The relay
+still recognises OpenRouter free models for anyone calling it directly, and
+refuses every model that isn't `:free`.
 
 ### Kojo provider
 

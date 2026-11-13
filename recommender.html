@@ -108,9 +108,7 @@
     <div>
       <label for="aiProvider">Provider</label>
       <select id="aiProvider" onchange="onProviderChange()">
-        <option value="openrouter" selected>OpenRouter (free models)</option>
-        <option value="kojo">Kojo (kojo.sh)</option>
-        <option value="opencode">OpenCode (opencode.ai)</option>
+        <option value="kojo" selected>Kojo (kojo.sh)</option>
       </select>
     </div>
     <div id="kojoSettings" style="display:none">
@@ -140,9 +138,6 @@
       <div class="hint">Leave empty to use the built-in relay — no key needed. Paste a key from <a href="https://openrouter.ai" target="_blank">openrouter.ai</a> to call OpenRouter directly and bill your own account.</div>
       <label for="openrouterModel">Model</label>
       <select id="openrouterModel">
-        <option value="nvidia/nemotron-3.5-lightning:free">Nemotron 3.5 Lightning (free, fastest)</option>
-        <option value="nvidia/nemotron-3-super-120b-a12b:free">Nemotron 3 Super 120B (free)</option>
-        <option value="nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron 3 Ultra 550B (free, slow — can queue for minutes)</option>
         <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B Instruct (free)</option>
         <option value="meta-llama/llama-3.1-70b-instruct:free">Llama 3.1 70B Instruct (free)</option>
         <option value="mistralai/mistral-7b-instruct:free">Mistral 7B Instruct (free)</option>
@@ -904,14 +899,8 @@ function renderQwenPanel(){
   if(!p) return;
   if(!onlineAssist || !lastTop5 || !lastTop5.length){ p.style.display='none'; return; }
   p.style.display='block';
-  let _orvModel='Nemotron via OpenRouter';
-  try{
-    const _s=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}');
-    if(_s.provider==='kojo'){ _orvModel=(_s.kojoModel||'kojo')+' via Kojo'; }
-    else{ const _m=_s.openrouterModel||DEFAULT_OPENROUTER_MODEL; _orvModel=_m.split('/').pop().replace(':free',' (free)')+' via OpenRouter'; }
-  }catch(e){}
-  p.innerHTML=`🌐 <b>Online AI Verification (${esc(_orvModel)})</b>
-    <div style="margin-top:8px"><button class="btn" onclick="runOpenRouterVerification()">Run AI Verification</button> <button class="btn-ghost" onclick="copyQwenPrompt()">Copy prompt</button> <button class="btn-ghost" onclick="openQwen()">Open Qwen manually</button></div>
+  p.innerHTML=`🌐 <b>Online AI Verification (Kojo)</b>
+    <div style="margin-top:8px"><button class="btn" onclick="runAIVerification()">Run AI Verification</button> <button class="btn-ghost" onclick="copyQwenPrompt()">Copy prompt</button> <button class="btn-ghost" onclick="openQwen()">Open Qwen manually</button></div>
     <div id="openrouterResult" style="margin-top:10px;display:none"></div>
     <textarea id="qwenPrompt" readonly aria-label="Generated AI prompt" style="width:100%;min-height:90px;margin-top:6px;font-size:11px;font-family:inherit;display:none"></textarea>`;
   const t=document.getElementById('qwenPrompt');
@@ -952,41 +941,19 @@ function clearSavedKey(){
   try{ const _kf=document.getElementById('openrouterApiKey'); if(_kf) _kf.value=''; }catch(e){}
   try{ const s=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}'); if(s.openrouterApiKey){ s.openrouterApiKey=''; localStorage.setItem('homeo_ai_settings',JSON.stringify(s)); } }catch(e){}
 }
-async function runOpenRouterVerification(){
+async function runAIVerification(){
   const resultDiv=document.getElementById('openrouterResult');
   const btn=(typeof event!=='undefined'&&event&&event.target)?event.target:null;
   if(btn){ btn.disabled=true; btn.textContent='Running AI verification...'; }
   resultDiv.style.display='block';
   resultDiv.style.background='var(--accent-soft)';
   resultDiv.style.color='var(--accent)';
-  resultDiv.innerHTML='<b>Checking settings…</b>';
+  resultDiv.innerHTML='<b>Connecting to Kojo…</b>';
   const settings=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}');
-  const apiProvider=(settings.provider==='kojo'?'kojo':'openrouter');
-  let ownKey=apiProvider==='kojo' ? ((settings.kojoApiKey||'').trim()) : ((settings.openrouterApiKey||'').trim());
-  const kojoModel=(settings.kojoModel||'kojo').trim()||'kojo';
-  let model=apiProvider==='kojo' ? kojoModel : ((settings.openrouterModel||DEFAULT_OPENROUTER_MODEL).trim()||DEFAULT_OPENROUTER_MODEL);
-  // A saved key can be stale/revoked (it would come back as "User not found").
-  // Probe it cheaply first; if it is dead, drop it and use the built-in relay.
-  if(ownKey && ownKey.indexOf('YOUR_')<0 && apiProvider==='openrouter'){
-    if((await probeOpenRouterKey(ownKey))===false){ ownKey=''; clearSavedKey(); }
-  }
-  let endpoint, authHeader, via;
-  if(apiProvider==='kojo'){
-    // api.kojo.sh does not send CORS headers, so no browser-direct call is
-    // possible — the relay (which holds KOJO_API_KEY server-side) is the path.
-    endpoint=AI_RELAY_URL;
-    authHeader=null;
-    via='Kojo (built-in relay)';
-  }else if(ownKey && ownKey.indexOf('YOUR_')<0){
-    endpoint='https://openrouter.ai/api/v1/chat/completions';
-    authHeader='Bearer '+ownKey;
-    via='OpenRouter';
-  }else{
-    endpoint=AI_RELAY_URL;
-    authHeader=null;
-    via='built-in relay';
-    if(model.slice(-5)!==':free') model=DEFAULT_OPENROUTER_MODEL; // the relay only forwards free models
-  }
+  // Verification runs on Kojo, like the chat: api.kojo.sh sends no CORS headers,
+  // so the request always goes through the relay holding KOJO_API_KEY.
+  const model=(settings.kojoModel||'kojo').trim()||'kojo';
+  const endpoint=AI_RELAY_URL, authHeader=null, via='Kojo';
   resultDiv.style.background='var(--accent-soft)';
   resultDiv.style.color='var(--accent)';
   resultDiv.innerHTML='<b>Connecting to '+via+' ('+esc(model.split('/')[1]||model)+')…</b> <span id="orvElapsed">0s</span> <button class="btn-ghost" style="min-height:26px;font-size:11px;padding:2px 10px;margin-left:8px" onclick="_orvAbort&&_orvAbort.abort()">Cancel</button><div id="orvStream" style="white-space:pre-wrap;margin-top:8px;font-size:12.5px;line-height:1.6;color:var(--ink)"></div>';
@@ -1076,10 +1043,9 @@ async function runOpenRouterVerification(){
     resultDiv.style.background='#fef2f2';
     resultDiv.style.color='var(--bad)';
     const msg = timedOut
-      ? 'Timed out after 5 minutes (free-tier models queue during peak hours). Press Cancel and retry, or pick another free model in Settings (⚙️).'
+      ? 'Timed out after 5 minutes. Press Cancel and retry.'
       : (e.name==='AbortError' ? 'Cancelled by user.' : e.message);
-    const _srvName = apiProvider==='kojo' ? 'Kojo' : 'OpenRouter';
-    resultDiv.innerHTML=`<b>${timedOut?'Timeout:':'Error:'}</b> ${esc(msg)}<br><small>${timedOut||e.name==='AbortError'?'':esc(aiOriginHint(e)||(ownKey?'Check API key in Settings (⚙️) and model availability on '+_srvName+'.':'The relay is busy or unreachable — wait a moment and retry.'))}</small>`;
+    resultDiv.innerHTML=`<b>${timedOut?'Timeout:':'Error:'}</b> ${esc(msg)}<br><small>${timedOut||e.name==='AbortError'?'':esc(aiOriginHint(e)||'The Kojo relay is busy or unreachable — wait a moment and retry.')}</small>`;
   }finally{
     clearInterval(ticker); clearTimeout(timeout); _orvAbort=null;
     if(btn){ btn.disabled=false; btn.textContent='Run AI Verification'; }
@@ -2180,14 +2146,15 @@ try{ const _sf=document.getElementById('stockFile'); if(_sf) _sf.addEventListene
         s.openrouterModel='nvidia/nemotron-3.5-lightning:free';
         try{ localStorage.setItem('homeo_ai_settings', JSON.stringify(s)); }catch(e){}
       }
-      if(s.provider) document.getElementById('aiProvider').value=s.provider;
+      // Kojo is the only provider; a saved OpenRouter/OpenCode choice migrates to it.
+      document.getElementById('aiProvider').value='kojo';
       onProviderChange();
       if(s.opencodeApiKey) document.getElementById('opencodeApiKey').value=s.opencodeApiKey;
       if(s.opencodeModel) document.getElementById('opencodeModel').value=s.opencodeModel;
       if(s.kojoApiKey) document.getElementById('kojoApiKey').value=s.kojoApiKey;
       document.getElementById('kojoModel').value=s.kojoModel || 'kojo';
-      document.getElementById('openrouterApiKey').value=s.openrouterApiKey || '';
-      document.getElementById('openrouterModel').value=s.openrouterModel || DEFAULT_OPENROUTER_MODEL;
+      const _ok=document.getElementById('openrouterApiKey'); if(_ok) _ok.value=s.openrouterApiKey || '';
+      const _om=document.getElementById('openrouterModel'); if(_om) _om.value=s.openrouterModel || DEFAULT_OPENROUTER_MODEL;
       // Validate any saved key as soon as the page opens: a revoked one (left
       // behind by an older build of this page) is wiped on the spot, so nobody
       // ever sees "User not found" — the built-in relay is used instead.
@@ -2205,8 +2172,8 @@ try{ const _sf=document.getElementById('stockFile'); if(_sf) _sf.addEventListene
       opencodeModel: document.getElementById('opencodeModel').value,
       kojoApiKey: document.getElementById('kojoApiKey').value,
       kojoModel: document.getElementById('kojoModel').value || 'kojo',
-      openrouterApiKey: document.getElementById('openrouterApiKey').value,
-      openrouterModel: document.getElementById('openrouterModel').value,
+      openrouterApiKey: (document.getElementById('openrouterApiKey')||{}).value || '',
+      openrouterModel: (document.getElementById('openrouterModel')||{}).value || '',
     };
     if(s.openrouterModel==='nvidia/nemotron-3-ultra-550b-a55b:free') s._ultraKept=true; // explicit choice — skip future migration
     localStorage.setItem('homeo_ai_settings', JSON.stringify(s));
@@ -3302,23 +3269,10 @@ async function chatAnswer(text){
 function chatAIResolve(){
   var settings={};
   try{ settings=JSON.parse(localStorage.getItem('homeo_ai_settings')||'{}'); }catch(e){}
-  // Kojo is the designated chat provider (per app setup); OpenRouter stays
-  // available for users who explicitly choose it in ⚙️ AI Settings.
-  var apiProvider=settings.provider==='openrouter'?'openrouter':'kojo';
-  var ownKey=apiProvider==='kojo' ? ((settings.kojoApiKey||'').trim()) : ((settings.openrouterApiKey||'').trim());
-  var model;
-  if(apiProvider==='kojo'){
-    // api.kojo.sh does not send CORS headers, so the relay (which holds
-    // KOJO_API_KEY server-side) is always the path.
-    model=(settings.kojoModel||'kojo').trim()||'kojo';
-    return { endpoint:AI_RELAY_URL, authHeader:null, model:model, via:'Kojo' };
-  }
-  model=(settings.openrouterModel||DEFAULT_OPENROUTER_MODEL).trim()||DEFAULT_OPENROUTER_MODEL;
-  if(ownKey && ownKey.indexOf('YOUR_')<0){
-    return { endpoint:'https://openrouter.ai/api/v1/chat/completions', authHeader:'Bearer '+ownKey, model:model, via:'OpenRouter' };
-  }
-  if(model.slice(-5)!==':free') model=DEFAULT_OPENROUTER_MODEL; // the relay only forwards free models
-  return { endpoint:AI_RELAY_URL, authHeader:null, model:model, via:'built-in relay' };
+  // Every chat answer runs on Kojo. api.kojo.sh sends no CORS headers, so the
+  // relay (which holds KOJO_API_KEY server-side) is always the path.
+  var model=(settings.kojoModel||'kojo').trim()||'kojo';
+  return { endpoint:AI_RELAY_URL, authHeader:null, model:model, via:'Kojo' };
 }
 function chatKojoContext(){
   var tok=chatCompileTokens();
