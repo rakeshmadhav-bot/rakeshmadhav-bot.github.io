@@ -568,9 +568,23 @@ body.library{background:var(--paper)}
 .sb-head{display:flex;align-items:center;padding:2px 6px 10px}
 .sb-brand{display:flex;align-items:center;gap:9px;min-width:0;text-decoration:none;color:var(--ink);border-radius:6px}
 .sb-brand:hover{color:var(--accent)}
-.sb-brand .logo{width:28px;height:23px;border:0;background:none;border-radius:0}
-.sb-brand .logo svg{width:28px;height:23px}
-.sb-wordmark{font-family:var(--serif);font-size:15.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+/* brand lockup: the supplied mark + wordmark, drawn as inline SVG so it
+   recolours with the theme instead of shipping two raster files */
+.sb-brand{gap:9px}
+.brand-mark{display:block;width:32px;flex:0 0 32px}
+.brand-mark svg{display:block;width:100%;height:auto}
+.mk-bg{fill:#153B2F}
+.mk-drop{fill:#FBF9F3}
+.mk-ink{fill:#153B2F;stroke:#153B2F}
+.brand-wordmark{display:block;width:141px}
+.brand-wordmark svg{display:block;width:100%;height:auto;overflow:visible}
+.wm-ink{fill:#153B2F}
+.wm-teal{fill:#2C7C6A}
+.wm-sub{fill:#77877C}
+[data-theme="dark"] .mk-drop{fill:#F3F0E6}
+[data-theme="dark"] .wm-ink{fill:#EFEDE3}
+[data-theme="dark"] .wm-teal{fill:#6CC3AC}
+[data-theme="dark"] .wm-sub{fill:#93A399}
 .sb-new{
   display:flex;align-items:center;gap:9px;width:100%;background:transparent;
   border:1px solid transparent;border-radius:8px;padding:7px 10px;min-height:34px;

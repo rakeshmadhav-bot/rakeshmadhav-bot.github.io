@@ -12,9 +12,26 @@
 <div class="app">
 <aside class="sidebar" id="sidebar" aria-label="Chats and navigation">
   <div class="sb-head">
-    <a class="sb-brand" href="recommender.html" aria-label="HomeoAI clinical repertory — reload">
-      <span class="logo"><svg viewBox="0 0 124 100" width="30" height="24" aria-hidden="true"><rect x="0" y="0" width="124" height="100" rx="14" fill="#000"/><polygon points="22,30 38,30 30,8" fill="#3b4bd8"/><polygon points="54,30 70,30 62,8" fill="#3b4bd8"/><rect x="10" y="30" width="62" height="62" rx="14" fill="#3b4bd8"/><rect x="16" y="36" width="50" height="50" rx="10" fill="#ffef00" stroke="#000" stroke-width="2"/><circle cx="31" cy="59" r="8" fill="#000"/><circle cx="57" cy="59" r="8" fill="#000"/><polygon points="36,73 52,73 44,88" fill="#000"/><polygon points="41,81 47,81 44,88" fill="#e01b1b"/><g><rect x="88" y="18" width="24" height="64" rx="12" fill="#fff" stroke="#000" stroke-width="2"/><path d="M88 50 h24 V30 a12 12 0 0 0 -24 0 Z" fill="#f31212"/><line x1="88" y1="50" x2="112" y2="50" stroke="#000" stroke-width="2"/></g></svg></span>
-      <span class="sb-wordmark">HomeoAI</span>
+    <a class="sb-brand" href="recommender.html" aria-label="HomeoAI — clinical repertory (reload)">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 88 62" role="presentation" focusable="false">
+          <rect width="88" height="62" rx="11" class="mk-bg"/>
+          <path class="mk-drop" d="M44 7C44 7 63 28 63 38A19 19 0 0 1 25 38C25 28 44 7 44 7Z"/>
+          <g class="mk-ink" stroke-width="2.3" stroke-linecap="round">
+            <path d="M44 23v22M44 33l-9 7M44 33l9 7"/>
+            <circle cx="44" cy="23" r="2.5" stroke="none"/>
+            <circle cx="44" cy="45" r="2.5" stroke="none"/>
+            <circle cx="35" cy="40" r="2.5" stroke="none"/>
+            <circle cx="53" cy="40" r="2.5" stroke="none"/>
+          </g>
+        </svg>
+      </span>
+      <span class="brand-wordmark" aria-hidden="true">
+        <svg viewBox="0 0 250 84" role="presentation" focusable="false">
+          <text x="0" y="45" font-size="54" font-weight="700" letter-spacing="-2.2" font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif"><tspan class="wm-ink">Homeo</tspan><tspan class="wm-teal">AI</tspan></text>
+          <text x="1" y="78" font-size="15" font-weight="600" letter-spacing="5.8" font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" textLength="246" lengthAdjust="spacing" class="wm-sub">CLINICAL REPERTORY</text>
+        </svg>
+      </span>
     </a>
   </div>
   <button type="button" class="sb-new" onclick="chatReset(true);setView('chat');closeSidebar()">
