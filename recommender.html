@@ -343,7 +343,7 @@ var HEAVY_SCRIPTS=[
   'data/abc_index.js','data/oorep_index.js','data/oorep_rag.js',
   'data/boericke_full.js','data/db_rag.js','data/db_mm.js'
 ];
-var _heavyPromise=null;
+var _heavyPromise=null, _heavyDone=false;
 function loadScript(src){
   return new Promise(function(resolve,reject){
     var el=document.createElement('script');
@@ -364,6 +364,7 @@ function ensureHeavyData(){
     });
   }, Promise.resolve()).then(function(){
     try{ loadDB(); }catch(e){ console.warn('loadDB after lazy data', e); }
+    _heavyDone=true;
     return true;
   });
   return _heavyPromise;
@@ -2618,13 +2619,24 @@ function chatStatus(text, live){
   el.textContent=text;
   el.classList.toggle('live', !!live);
 }
-/* While Kojo is working the answer header just says "Thinking", then goes away:
-   the reply stands on its own without a source/rubric ticker. */
-function kojoWait(webstat){
-  if(!webstat) return;
+/* While Kojo is working the answer header says what it is doing — Thinking,
+   Searching sources, Repertorising — then goes away: the reply stands on its own
+   without a source/rubric ticker. */
+function kojoWait(webstat, label){
+  if(!webstat || !webstat.isConnected) return;
   webstat.classList.add('kojo-waiting');
   webstat.setAttribute('role','status');
-  webstat.innerHTML='Thinking<span class="kojo-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+  webstat.innerHTML=esc(String(label||'Thinking'))
+    +'<span class="kojo-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+}
+/* Steps flash past in a fast turn; hold each one long enough to be read. */
+var _kojoStepAt=0;
+async function kojoStep(webstat, label){
+  if(!webstat) return;
+  var wait=600-(Date.now()-_kojoStepAt);
+  if(wait>0) await new Promise(function(r){ setTimeout(r, wait); });
+  _kojoStepAt=Date.now();
+  kojoWait(webstat, label);
 }
 function kojoStat(webstat){
   if(!webstat) return;
@@ -3442,6 +3454,7 @@ async function chatKojoDeepAnalysis(){
   chatStatus('Kojo: full-case deep analysis…', true);
   try{
     // 1) Internet verification round through the relay (keyless search).
+    await kojoStep(webstat, 'Searching sources');
     var queries=chatWebQueries();
     var webs=await Promise.all(queries.map(function(q){ return chatWebSearch(q,2); }));
     var webBlock='', webNames=[];
@@ -3453,7 +3466,7 @@ async function chatKojoDeepAnalysis(){
         webBlock+='  ['+x.title+'] '+String(x.snippet||'').slice(0,220)+' ('+x.url+')\n';
       });
     });
-    kojoWait(webstat);
+    await kojoStep(webstat, 'Repertorising the totality');
     // 2) Structured totality + per-symptom + all-remedy verification prompt.
     var tokens=chatCompileTokens();
     var chief=tokens.slice(0,3).join(', ')||'no chief complaint recorded';
@@ -3751,13 +3764,16 @@ async function chatKojoAnswer(userText, attachList){
   var webstat=wrap?wrap.querySelector('.kojo-webstat'):null;
   kojoWait(webstat);
   chatStatus('Researching…', true);
+  if(!_heavyDone) await kojoStep(webstat, 'Loading the repertory');
   try{ await ensureHeavyData(); }catch(e){ console.warn('repertory data', e); }
   var research={block:'', sources:[]};
+  await kojoStep(webstat, 'Searching sources');
   try{ research=await chatResearch(userText); }catch(e){ console.warn('web research', e); }
   // Local database check: rubric evidence + monographs from the bundled export.
   var local={block:'', rubrics:0, remedies:0};
+  await kojoStep(webstat, 'Repertorising');
   try{ local=chatLocalGround(chatRecentUserTexts(2).join(' ')+' '+userText); }catch(e){ console.warn('local database', e); }
-  kojoWait(webstat);
+  await kojoStep(webstat, local.rubrics?'Weighing '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':'Thinking');
   var sys='You are Kojo, the live AI inside HomeoAI, a classical-homeopathy clinical assistant. Tradition: Boericke / Kent / Phatak. '
       +'MANDATORY STANCE (never break it): homeopathy here is a SUPPORTIVE companion taken alongside regular medical care, never a replacement — mention that framing at most once and only if relevant. '
       +'Never import external evidence debates or append unsolicited disclaimers: no systematic reviews, no Cochrane/NHMRC citations, no placebo claims, no "lacks evidence", no "should not replace evidence-based care" lectures, no dilution math. '
