@@ -126,15 +126,16 @@ against already-given remedies still decides the final pick.
 ### Saved chats (continue / delete)
 
 Every chat is auto-saved **on the device it was written on** (`homeo_chat_history`,
-last 30 chats): the full transcript plus the model message history and the last
+up to 200 chats): the full transcript plus the model message history and the last
 **Final Top 5**. Reopening the page resumes the most recent conversation
 automatically — on the same browser profile, on Chrome for Android and on a
 Windows PC alike — and **New chat** starts a fresh one without deleting the old
 record. Writes are flushed when the tab is hidden or closed, and if storage is
 full the oldest chats are dropped (then the saved HTML) so the current chat still
-saves. The **Saved** button lists them — **Continue** restores the transcript,
-keeps the ranking for follow-up grounding, and puts the cursor back in the
-composer; **Rename** gives a chat your own title in place (Enter saves, Escape
+saves. The rail lists every one of them under **Pinned / Today / Yesterday /
+Previous 7 days / Older** — clicking a row restores the transcript, keeps the
+ranking for follow-up grounding, and puts the cursor back in the composer;
+**Rename** gives a chat your own title in place (Enter saves, Escape
 cancels, an empty name falls back to the first question, and the name survives
 later auto-saves); **Delete** removes a chat permanently, and the **⋯** menu on any row offers
 **Export chat**. **Export all** in the panel header writes every chat at once.

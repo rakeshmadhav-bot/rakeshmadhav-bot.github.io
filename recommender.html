@@ -4224,17 +4224,17 @@ function chatHistoryRender(){
     var autoTitle=firstUser?firstUser.slice(0,70):'Chat';
     var item=document.createElement('div');
     item.className='chat-hist-item'+(r.pinned?' pinned':'');
-    var title=document.createElement('div');
+    var title=document.createElement('button');
+    title.type='button';
     title.className='chat-hist-title';
     title.textContent=r.title||autoTitle;
     title.title=r.title||autoTitle;
+    title.onclick=function(e){ if(e) e.stopPropagation(); chatHistoryContinue(r.id); };
     var meta=document.createElement('div');
     meta.className='chat-hist-meta';
     meta.textContent=d.toLocaleString()+' · '+((st.msgs||[]).filter(function(m){return m.role==='user';}).length)+' question(s)'+(r.title?' · saved chat':'');
     var actions=document.createElement('div');
     actions.className='chat-hist-actions';
-    var cont=document.createElement('button'); cont.type='button'; cont.className='btn-ghost'; cont.textContent='Continue';
-    cont.onclick=function(){ chatHistoryContinue(r.id); };
     var more=document.createElement('button'); more.type='button'; more.className='chat-hist-more-btn'; more.textContent='⋯';
     more.setAttribute('aria-label','Chat actions'); more.setAttribute('aria-haspopup','true'); more.setAttribute('aria-expanded','false');
     var menu=document.createElement('div'); menu.className='chat-hist-more';
@@ -4246,7 +4246,7 @@ function chatHistoryRender(){
     ].forEach(function(x){
       var b=document.createElement('button'); b.type='button'; b.setAttribute('role','menuitem'); b.textContent=x[0];
       if(x[0]==='Delete') b.className='danger';
-      b.onclick=function(){ closeAllHistMenus(); x[1](); };
+      b.onclick=function(e){ e.stopPropagation(); closeAllHistMenus(); x[1](); };
       menu.appendChild(b);
     });
     more.onclick=function(e){
@@ -4256,8 +4256,9 @@ function chatHistoryRender(){
       menu.classList.toggle('open', open);
       more.setAttribute('aria-expanded', open?'true':'false');
     };
-    actions.appendChild(cont); actions.appendChild(more);
+    actions.appendChild(more);
     item.appendChild(title); item.appendChild(meta); item.appendChild(actions); item.appendChild(menu);
+    item.onclick=function(){ chatHistoryContinue(r.id); };  // the whole row opens it, like a conversation list
     list.appendChild(item);
   });
 }

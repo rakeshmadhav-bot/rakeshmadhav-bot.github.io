@@ -646,12 +646,17 @@ body.library{background:var(--paper)}
 /* recents rows, compacted for the rail */
 .sb-list .chat-hist-item{border:0;border-radius:8px;padding:6px 10px;margin:0 2px}
 .sb-list .chat-hist-item:hover{background:var(--sb-hover)}
-.sb-list .chat-hist-title{font-size:12.5px;font-weight:500}
+.sb-list .chat-hist-title{
+  display:block;width:100%;text-align:left;background:none;border:0;padding:0;
+  font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--ink);
+  cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.sb-list .chat-hist-title:hover{color:var(--accent)}
+.sb-list .chat-hist-item{cursor:pointer}
 .sb-list .chat-hist-meta{display:none}
 .sb-list .chat-hist-actions{display:none;margin-top:5px}
 .sb-list .chat-hist-item:hover .chat-hist-actions,
 .sb-list .chat-hist-item:focus-within .chat-hist-actions{display:flex}
-.sb-list .chat-hist-actions .btn-ghost{min-height:24px;font-size:11px;padding:2px 8px}
 .sb-list .chat-hist-more{top:32px;right:0}
 .sb-list .chat-hist-empty{padding:8px 10px;font-size:12px;line-height:1.5}
 .sb-group{
