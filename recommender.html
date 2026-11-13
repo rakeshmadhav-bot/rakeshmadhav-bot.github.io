@@ -3855,6 +3855,8 @@ async function chatKojoAnswer(userText, attachList){
       });
       if(strip) live.innerHTML+='<div class="kojo-top5" aria-label="Final Top 5">'+strip+'</div>';
     }
+    if(webstat) webstat.textContent=(research.block?'web sources: '+research.sources.join(' + ')+' · checked':'no web results this turn')
+      +(local.rubrics?' · local repertorisation: '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':'');
     var secs=Math.round((Date.now()-t0)/1000);
     chatStatus('Answered by '+cfg.via+' · '+secs+'s'+(research.sources.length?' · '+research.sources.join('+'):'')+(local.rubrics?' · repertorised '+local.symptoms+' symptoms':''));
   }catch(e){
