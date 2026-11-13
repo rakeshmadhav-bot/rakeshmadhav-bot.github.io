@@ -2593,6 +2593,20 @@ function chatStatus(text, live){
   el.textContent=text;
   el.classList.toggle('live', !!live);
 }
+/* While Kojo is working the answer header just says "Thinking" — which sources
+   were consulted and how many rubrics matched are shown once the reply lands. */
+function kojoWait(webstat){
+  if(!webstat) return;
+  webstat.classList.add('kojo-waiting');
+  webstat.setAttribute('role','status');
+  webstat.innerHTML='Thinking<span class="kojo-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+}
+function kojoStat(webstat, text){
+  if(!webstat) return;
+  webstat.classList.remove('kojo-waiting');
+  webstat.removeAttribute('role');
+  webstat.textContent=text;
+}
 function chatScroll(){
   var log=document.getElementById('chatLog');
   if(log) log.scrollTop=log.scrollHeight;
@@ -3398,9 +3412,10 @@ async function chatKojoDeepAnalysis(){
   if(CHAT.aiBusy) return;
   CHAT.aiBusy=true;
   var t0=Date.now();
-  var wrap=chatAdd('bot','<div style="margin-bottom:4px"><span style="font-size:11px;opacity:.7">🌐 Kojo deep analysis</span> <span class="typing"><i></i><i></i><i></i></span></div><div style="font-size:11.5px;opacity:.75;margin-bottom:6px" class="kojo-webstat">searching materia-medica sources on the internet…</div><div class="kojo-live" style="white-space:pre-wrap;font-size:12.8px;line-height:1.55"></div>');
+  var wrap=chatAdd('bot','<div style="margin-bottom:4px"><span style="font-size:11px;opacity:.7">🌐 Kojo deep analysis</span> <span class="typing"><i></i><i></i><i></i></span></div><div style="font-size:11.5px;opacity:.75;margin-bottom:6px" class="kojo-webstat">Thinking</div><div class="kojo-live" style="white-space:pre-wrap;font-size:12.8px;line-height:1.55"></div>');
   var live=wrap?wrap.querySelector('.kojo-live'):null;
   var webstat=wrap?wrap.querySelector('.kojo-webstat'):null;
+  kojoWait(webstat);
   chatStatus('Kojo: full-case deep analysis…', true);
   try{
     // 1) Internet verification round through the relay (keyless search).
@@ -3415,7 +3430,7 @@ async function chatKojoDeepAnalysis(){
         webBlock+='  ['+x.title+'] '+String(x.snippet||'').slice(0,220)+' ('+x.url+')\n';
       });
     });
-    if(webstat) webstat.textContent=webBlock?('internet verification done ('+webNames.join(' + ')+') · analysing collectively and individually…'):'web check unavailable — verifying from the full classical corpus only…';
+    kojoWait(webstat);
     // 2) Structured totality + per-symptom + all-remedy verification prompt.
     var tokens=chatCompileTokens();
     var chief=tokens.slice(0,3).join(', ')||'no chief complaint recorded';
@@ -3501,8 +3516,8 @@ async function chatKojoDeepAnalysis(){
       if(tryB.length>topNames.length) topNames=tryB;
     }
     if(topNames.length){ CHAT.aiTop5=topNames; CHAT.aiText=full; }
-    if(webstat) webstat.textContent=(research.block?'web sources: '+research.sources.join(' + ')+' · checked':'no web results this turn')
-      +(local.rubrics?' · local repertorisation: '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':'');
+    kojoStat(webstat,(research.block?'web sources: '+research.sources.join(' + ')+' · checked':'no web results this turn')
+      +(local.rubrics?' · local repertorisation: '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':''));
     var secs=Math.round((Date.now()-t0)/1000);
     chatStatus('Deep analysis done · '+secs+'s'+(webNames.length?(' · '+webNames.join('+')):' · no web'));
   }catch(e){
@@ -3709,9 +3724,10 @@ async function chatResearch(text){
 
 async function chatKojoAnswer(userText, attachList){
   var cfg=chatAIResolve();
-  var wrap=chatAdd('bot','<div style="margin-bottom:4px"><span style="font-size:11px;opacity:.7">🌐 Kojo</span> <span class="typing"><i></i><i></i><i></i></span></div><div class="kojo-webstat" style="font-size:11.5px;opacity:.75;margin-bottom:6px">researching the internet…</div><div class="kojo-live" style="white-space:pre-wrap;font-size:12.8px;line-height:1.55"></div>');
+  var wrap=chatAdd('bot','<div style="margin-bottom:4px"><span style="font-size:11px;opacity:.7">🌐 Kojo</span> <span class="typing"><i></i><i></i><i></i></span></div><div class="kojo-webstat" style="font-size:11.5px;opacity:.75;margin-bottom:6px">Thinking</div><div class="kojo-live" style="white-space:pre-wrap;font-size:12.8px;line-height:1.55"></div>');
   var live=wrap?wrap.querySelector('.kojo-live'):null;
   var webstat=wrap?wrap.querySelector('.kojo-webstat'):null;
+  kojoWait(webstat);
   chatStatus('Researching…', true);
   try{ await ensureHeavyData(); }catch(e){ console.warn('repertory data', e); }
   var research={block:'', sources:[]};
@@ -3719,8 +3735,7 @@ async function chatKojoAnswer(userText, attachList){
   // Local database check: rubric evidence + monographs from the bundled export.
   var local={block:'', rubrics:0, remedies:0};
   try{ local=chatLocalGround(chatRecentUserTexts(2).join(' ')+' '+userText); }catch(e){ console.warn('local database', e); }
-  if(webstat) webstat.textContent=(research.block?'web sources: '+research.sources.join(' + '):'no web results')
-    +(local.rubrics?' · local repertorisation: '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':'')+' — weighing…';
+  kojoWait(webstat);
   var sys='You are Kojo, the live AI inside HomeoAI, a classical-homeopathy clinical assistant. Tradition: Boericke / Kent / Phatak. '
       +'MANDATORY STANCE (never break it): homeopathy here is a SUPPORTIVE companion taken alongside regular medical care, never a replacement — mention that framing at most once and only if relevant. '
       +'Never import external evidence debates or append unsolicited disclaimers: no systematic reviews, no Cochrane/NHMRC citations, no placebo claims, no "lacks evidence", no "should not replace evidence-based care" lectures, no dilution math. '
@@ -3855,8 +3870,8 @@ async function chatKojoAnswer(userText, attachList){
       });
       if(strip) live.innerHTML+='<div class="kojo-top5" aria-label="Final Top 5">'+strip+'</div>';
     }
-    if(webstat) webstat.textContent=(research.block?'web sources: '+research.sources.join(' + ')+' · checked':'no web results this turn')
-      +(local.rubrics?' · local repertorisation: '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':'');
+    kojoStat(webstat,(research.block?'web sources: '+research.sources.join(' + ')+' · checked':'no web results this turn')
+      +(local.rubrics?' · local repertorisation: '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':''));
     var secs=Math.round((Date.now()-t0)/1000);
     chatStatus('Answered by '+cfg.via+' · '+secs+'s'+(research.sources.length?' · '+research.sources.join('+'):'')+(local.rubrics?' · repertorised '+local.symptoms+' symptoms':''));
   }catch(e){
