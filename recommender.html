@@ -2593,19 +2593,17 @@ function chatStatus(text, live){
   el.textContent=text;
   el.classList.toggle('live', !!live);
 }
-/* While Kojo is working the answer header just says "Thinking" — which sources
-   were consulted and how many rubrics matched are shown once the reply lands. */
+/* While Kojo is working the answer header just says "Thinking", then goes away:
+   the reply stands on its own without a source/rubric ticker. */
 function kojoWait(webstat){
   if(!webstat) return;
   webstat.classList.add('kojo-waiting');
   webstat.setAttribute('role','status');
   webstat.innerHTML='Thinking<span class="kojo-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
 }
-function kojoStat(webstat, text){
+function kojoStat(webstat){
   if(!webstat) return;
-  webstat.classList.remove('kojo-waiting');
-  webstat.removeAttribute('role');
-  webstat.textContent=text;
+  webstat.remove();
 }
 function chatScroll(){
   var log=document.getElementById('chatLog');
@@ -3516,8 +3514,7 @@ async function chatKojoDeepAnalysis(){
       if(tryB.length>topNames.length) topNames=tryB;
     }
     if(topNames.length){ CHAT.aiTop5=topNames; CHAT.aiText=full; }
-    kojoStat(webstat,(research.block?'web sources: '+research.sources.join(' + ')+' · checked':'no web results this turn')
-      +(local.rubrics?' · local repertorisation: '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':''));
+    kojoStat(webstat);
     var secs=Math.round((Date.now()-t0)/1000);
     chatStatus('Deep analysis done · '+secs+'s'+(webNames.length?(' · '+webNames.join('+')):' · no web'));
   }catch(e){
@@ -3870,8 +3867,7 @@ async function chatKojoAnswer(userText, attachList){
       });
       if(strip) live.innerHTML+='<div class="kojo-top5" aria-label="Final Top 5">'+strip+'</div>';
     }
-    kojoStat(webstat,(research.block?'web sources: '+research.sources.join(' + ')+' · checked':'no web results this turn')
-      +(local.rubrics?' · local repertorisation: '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':''));
+    kojoStat(webstat);
     var secs=Math.round((Date.now()-t0)/1000);
     chatStatus('Answered by '+cfg.via+' · '+secs+'s'+(research.sources.length?' · '+research.sources.join('+'):'')+(local.rubrics?' · repertorised '+local.symptoms+' symptoms':''));
   }catch(e){
