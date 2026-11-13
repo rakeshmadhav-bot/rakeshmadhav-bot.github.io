@@ -813,7 +813,7 @@ function viewStoredReport(id){
   const rep=patientReports(name).find(function(r){ return r.id===id; }); if(!rep) return;
   const out=document.getElementById('reportResult'); if(!out) return;
   out.style.display='block';
-  if(rep.dataUrl && /^image\//.test(rep.type||'')){ out.innerHTML='<b>'+esc(rep.name)+'</b><br><img src="'+rep.dataUrl+'" style="max-width:100%;max-height:420px;border:1px solid var(--border);border-radius:8px;margin-top:6px">'; }
+  if(rep.dataUrl && /^image\//.test(rep.type||'')){ out.innerHTML='<b>'+esc(rep.name)+'</b><br><img src="'+rep.dataUrl+'" alt="Attached report: '+esc(rep.name)+'" style="max-width:100%;max-height:420px;border:1px solid var(--border);border-radius:8px;margin-top:6px">'; }
   else if(rep.dataUrl && /pdf/.test(rep.type||'')){ try{ const by=fetch(rep.dataUrl).then(function(r){ return r.blob(); }).then(function(b){ window.open(URL.createObjectURL(b),'_blank'); }); }catch(e){ alert('Cannot open PDF preview.'); } }
   else if(rep.text){ out.innerHTML='<b>'+esc(rep.name)+'</b><pre style="white-space:pre-wrap;font-size:11.5px;max-height:300px;overflow:auto;margin-top:6px">'+esc(rep.text)+'</pre>'; }
   else alert('No stored content to view for this file.');
@@ -961,7 +961,7 @@ function renderQwenPanel(){
   p.innerHTML=`🌐 <b>Online AI Verification (${esc(_orvModel)})</b>
     <div style="margin-top:8px"><button class="btn" onclick="runOpenRouterVerification()">Run AI Verification</button> <button class="btn-ghost" onclick="copyQwenPrompt()">Copy prompt</button> <button class="btn-ghost" onclick="openQwen()">Open Qwen manually</button></div>
     <div id="openrouterResult" style="margin-top:10px;display:none"></div>
-    <textarea id="qwenPrompt" readonly style="width:100%;min-height:90px;margin-top:6px;font-size:11px;font-family:inherit;display:none"></textarea>`;
+    <textarea id="qwenPrompt" readonly aria-label="Generated AI prompt" style="width:100%;min-height:90px;margin-top:6px;font-size:11px;font-family:inherit;display:none"></textarea>`;
   const t=document.getElementById('qwenPrompt');
   if(t) t.value=buildQwenPrompt();
 }

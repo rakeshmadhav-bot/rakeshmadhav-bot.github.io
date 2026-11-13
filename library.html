@@ -12,7 +12,7 @@
 <section class="card">
 <h1 style="margin:0 0 4px">Search the local reference database</h1>
 <p style="margin:0;color:var(--muted)">Search remedies, materia medica, repertory rubrics, modalities, and reference records imported from this project’s datasets.</p>
-<div class="lib-row" style="margin-top:14px"><input id="query" type="search" placeholder="Search e.g. Aconitum, cough, worse motion" autocomplete="off"><select id="filter"><option value="all">All categories</option><option value="remedy">Remedies</option><option value="materia_medica">Materia medica</option><option value="rubric">Rubrics</option><option value="reference_document">Reference documents</option><option value="inventory">Inventory</option></select></div>
+<div class="lib-row" style="margin-top:14px"><input id="query" type="search" placeholder="Search e.g. Aconitum, cough, worse motion" aria-label="Search the reference database" autocomplete="off"><select id="filter" aria-label="Filter by category"><option value="all">All categories</option><option value="remedy">Remedies</option><option value="materia_medica">Materia medica</option><option value="rubric">Rubrics</option><option value="reference_document">Reference documents</option><option value="inventory">Inventory</option></select></div>
 <div id="status" class="lib-status">Connecting to search API…</div><div id="stats" class="lib-stats"></div>
 </section>
 <section class="card"><div id="results" aria-live="polite"></div></section>
@@ -28,7 +28,7 @@
  function showLocal(q,type){
    const terms=q.toLowerCase().split(/\s+/).filter(Boolean);
    const hits=docs.filter(d=>(type==='all'||d.type===type)&&terms.every(t=>(d.title+' '+d.body+' '+d.source).toLowerCase().includes(t))).slice(0,50);
-   showResults(hits,q,docs.length?'Local fallback':'');
+   showResults(hits,q,docs.length?'downloaded index':'');
  }
  function showResults(hits,q,sourceLabel='API'){
    stats.textContent=`${hits.length}${hits.length>=50?' (up to 50 shown)':''} result(s)${sourceLabel?' · '+sourceLabel:''}`;
@@ -51,10 +51,12 @@
    }
    showLocal(q,type);
  }
- async function loadLocal(){if(localLoading)return localLoading;localLoading=(async()=>{try{const response=await fetch('data/homeopathy_search.json.gz');if(!response.ok)throw new Error(`HTTP ${response.status}`);const compressed=await response.arrayBuffer();if(!('DecompressionStream'in window))throw new Error('This browser cannot read the compressed data file.');const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));docs=JSON.parse(await new Response(stream).text());status.textContent=`Local fallback ready · ${docs.length.toLocaleString()} entries`;return true}catch(e){status.textContent=`Local search index unavailable: ${e.message}`;return false}})();return localLoading}
+ async function loadLocal(){if(localLoading)return localLoading;localLoading=(async()=>{try{const response=await fetch('data/homeopathy_search.json.gz');if(!response.ok)throw new Error(`HTTP ${response.status}`);const compressed=await response.arrayBuffer();if(!('DecompressionStream'in window))throw new Error('This browser cannot read the compressed data file.');const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));docs=JSON.parse(await new Response(stream).text());status.textContent=`Searching the downloaded index · ${docs.length.toLocaleString()} entries`;return true}catch(e){status.textContent=`Local search index unavailable: ${e.message}`;return false}})();return localLoading}
  async function init(){
-   try{const response=await fetch(`${API_BASE}/v1/health`,{headers:{Accept:'application/json'}});const health=await response.json();if(!response.ok||!health.ok)throw new Error('API database not configured');apiAvailable=true;status.textContent='Connected to live database search API.'}
-   catch(e){apiAvailable=false;status.textContent=`API unavailable (${e.message}); loading local fallback…`;await loadLocal()}
+   // The relay answers ok:true whenever its AI keys work; without a D1 binding
+   // every /v1/search is a 503, so the live database has to be checked on its own.
+   try{const response=await fetch(`${API_BASE}/v1/health`,{headers:{Accept:'application/json'}});const health=await response.json();if(!response.ok||!health.ok||health.database!=='configured')throw new Error(health.database==='configured'?'health check failed':'live database not configured');apiAvailable=true;status.textContent='Connected to live database search API.'}
+   catch(e){apiAvailable=false;status.textContent='Loading the downloaded search index…';await loadLocal()}
  }
  let timer;query.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(render,180)});filter.addEventListener('change',render);init();
 })();
