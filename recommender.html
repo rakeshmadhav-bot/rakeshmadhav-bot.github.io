@@ -178,8 +178,8 @@
         <label class="sr-only" for="chatInput">Your answer</label>
         <textarea id="chatInput" rows="1" placeholder="Describe the case, or attach a report…" autocomplete="off"></textarea>
         <div class="composer-bar">
-          <button type="button" class="composer-icon" id="chatAttachBtn" onclick="chatPickFiles()" aria-label="Attach a medical report (JPEG, PNG or PDF)" title="Attach a report (JPEG, PNG or PDF)">📎</button>
-          <button type="button" class="composer-icon" id="chatMic" onclick="chatVoice()" aria-label="Dictate instead of typing" title="Dictate instead of typing" aria-pressed="false">🎤</button>
+          <button type="button" class="composer-icon" id="chatAttachBtn" onclick="chatPickFiles()" aria-label="Attach a medical report (JPEG, PNG or PDF)" title="Attach a report (JPEG, PNG or PDF)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 11.6 11.8 20.3a5 5 0 0 1-7.1-7.1l8.8-8.8a3.4 3.4 0 0 1 4.8 4.8l-8.8 8.8a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9"/></svg></button>
+          <button type="button" class="composer-icon" id="chatMic" onclick="chatVoice()" aria-label="Dictate instead of typing" title="Dictate instead of typing" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></svg></button>
           <span class="composer-hint" id="composerHint">Enter to send</span>
           <button type="submit" class="composer-send" id="chatSendBtn" aria-label="Send message" title="Send">↑</button>
         </div>
@@ -4505,10 +4505,12 @@ var chatRec=null, chatListening=false;
 var chatRec=null, chatListening=false, chatVoiceBase='', chatVoiceFinal='';
 var chatVoiceStopAsked=false, chatVoiceDead=false, chatVoiceStartedAt=0, chatVoiceRestarts=0;
 
+var CHAT_MIC_SVG='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></svg>';
+var CHAT_STOP_SVG='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="7" y="7" width="10" height="10" rx="2.2" fill="currentColor"/></svg>';
 function chatVoiceUi(on){
   var btn=document.getElementById('chatMic'); if(!btn) return;
   btn.classList.toggle('listening', !!on);
-  btn.textContent=on?'⏹':'🎤';
+  btn.innerHTML=on?CHAT_STOP_SVG:CHAT_MIC_SVG;
   btn.setAttribute('aria-pressed', on?'true':'false');
   btn.setAttribute('aria-label', on?'Stop dictation':'Dictate instead of typing');
   btn.title=on?'Stop dictation':'Dictate instead of typing';
