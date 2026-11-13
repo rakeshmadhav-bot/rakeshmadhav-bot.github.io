@@ -662,3 +662,24 @@ body.library{background:var(--paper)}
   .mb-brand{font-family:var(--serif);font-size:15px;font-weight:600;margin-right:auto;padding-left:2px}
   .sb-list .chat-hist-actions{display:flex}
 }
+
+
+/* ------------------------------------------------- rail search + import */
+.sb-search-wrap{padding:0 6px 6px}
+.sb-search{
+  min-height:30px;padding:5px 9px;font-size:12px;border-radius:7px;
+  background:var(--card);border:1px solid var(--border);color:var(--ink);
+}
+.sb-search::-webkit-search-cancel-button{cursor:pointer}
+.sb-search:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--ring);outline:none}
+.sb-label-actions{display:flex;align-items:center;gap:2px}
+
+/* ------------------------------------- AI answer: paragraphs, not a slab */
+.kojo-live{white-space:normal!important}
+.kojo-p{margin:0 0 11px;line-height:1.62}
+.kojo-p:last-child{margin-bottom:0}
+.kojo-p b{font-weight:600}
+.kojo-verify{margin-top:12px;font-size:11.5px;opacity:.75}
+.kojo-top5{margin-top:14px;display:grid;gap:8px}
+.kojo-rx{margin-top:0;background:var(--card2)}
+.kojo-top5 .rx-head{align-items:center}

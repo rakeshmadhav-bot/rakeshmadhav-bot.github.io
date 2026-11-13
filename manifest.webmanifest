@@ -1,0 +1,24 @@
+{
+  "name": "HomeoAI — Clinical Repertory",
+  "short_name": "HomeoAI",
+  "description": "Offline-first classical homeopathy repertorisation: describe a case, get the top five remedies with potency and stock. Educational only; not a diagnosis or prescription.",
+  "id": "/recommender.html",
+  "start_url": "./recommender.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F5EF",
+  "theme_color": "#153B2F",
+  "orientation": "portrait-primary",
+  "categories": ["medical", "health", "productivity"],
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "New chat consultation", "url": "./recommender.html" },
+    { "name": "Case sheet", "url": "./recommender.html?view=form" },
+    { "name": "Library search", "url": "./library.html" }
+  ]
+}

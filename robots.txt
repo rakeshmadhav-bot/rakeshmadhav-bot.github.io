@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /worker/
+
+Sitemap: https://rakeshmadhav-bot.github.io/sitemap.xml

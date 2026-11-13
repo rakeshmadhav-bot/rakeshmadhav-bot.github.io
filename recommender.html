@@ -6,6 +6,24 @@
 <title>Homeo AI — Name • Age • Gender • Symptoms → Top 5 (Weightage)</title>
 <meta name="description" content="HomeoAI Clinical Recommender — a free, offline chat consultation that takes your symptoms and ranks the top 5 traditional homeopathic remedies, with potency, stock status and case sheet. Educational only; not a diagnosis or prescription.">
 <link rel="stylesheet" href="styles/app.css">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#153B2F">
+<meta name="application-name" content="HomeoAI">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="HomeoAI Clinical Repertory">
+<meta property="og:title" content="HomeoAI — Clinical Repertory">
+<meta property="og:description" content="Describe a case in your own words and get the classical repertorisation with a Final Top 5, potency and stock. Runs in your browser; educational only.">
+<meta property="og:url" content="https://rakeshmadhav-bot.github.io/recommender.html">
+<meta property="og:image" content="https://rakeshmadhav-bot.github.io/assets/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="HomeoAI — Clinical Repertory">
+<meta name="twitter:description" content="Classical repertorisation in the browser: describe the case, get the Final Top 5 with rein. Educational only.">
+<meta name="twitter:image" content="https://rakeshmadhav-bot.github.io/assets/og-card.png">
 </head>
 <body>
 <a class="skip-link" href="#results">Skip to recommendations</a>
@@ -43,12 +61,21 @@
     <a class="sb-item" href="library.html">Library search</a>
   </nav>
   <div class="sb-recents" id="chatHistPanel">
-    <div class="sb-label"><span id="chatHistBtn">Chats</span><button type="button" class="sb-link" onclick="chatHistoryExport()">Export</button></div>
+    <div class="sb-search-wrap">
+      <input id="chatSearch" class="sb-search" type="search" placeholder="Search chats" aria-label="Search saved chats" oninput="chatHistoryRender()">
+    </div>
+    <div class="sb-label"><span id="chatHistBtn">Chats</span>
+      <span class="sb-label-actions">
+        <button type="button" class="sb-link" onclick="chatImportPick()">Import</button>
+        <button type="button" class="sb-link" onclick="chatHistoryExport()">Export</button>
+      </span>
+    </div>
     <div id="chatHistList" class="sb-list"></div>
   </div>
   <div class="sb-foot">
     <button type="button" class="sb-item" id="settingsToggle" onclick="toggleSettings()">AI settings</button>
     <button type="button" class="sb-item" id="themeToggle" onclick="toggleTheme()">Theme <span class="sb-faint" id="themeLabel">Dark</span></button>
+    <input type="file" id="chatImportInput" accept="application/json,.json" hidden onchange="chatHistoryImportFile(this)">
     <details class="menu sb-menu" id="moreMenu">
       <summary class="sb-item" aria-label="More actions">More</summary>
       <div class="menu-list">
@@ -59,6 +86,7 @@
   </div>
 </aside>
 <main class="main">
+  <h1 class="sr-only">HomeoAI clinical repertory — chat consultation and case sheet</h1>
   <div class="mobile-bar">
     <button type="button" class="mb-btn" onclick="openSidebar()" aria-label="Open chats and navigation">☰</button>
     <span class="mb-brand">HomeoAI</span>
@@ -70,7 +98,7 @@
   <div class="card-head"><span><span class="step">⚙</span> &nbsp;AI Supervisor Settings</span></div>
   <div class="card-body" style="display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
     <div>
-      <label>Provider</label>
+      <label for="aiProvider">Provider</label>
       <select id="aiProvider" onchange="onProviderChange()">
         <option value="openrouter" selected>OpenRouter (free models)</option>
         <option value="kojo">Kojo (kojo.sh)</option>
@@ -78,31 +106,31 @@
       </select>
     </div>
     <div id="kojoSettings" style="display:none">
-      <label>Kojo API Key</label>
+      <label for="kojoApiKey">Kojo API Key</label>
       <input type="password" id="kojoApiKey" placeholder="sk-kojo-... (from kojo.sh → API keys)" autocomplete="off">
       <div class="hint">Kojo speaks the OpenAI chat completions API (base URL <code>https://api.kojo.sh/v1</code>, model <code>kojo</code>). Keys are shown once at creation — get one from <a href="https://kojo.sh" target="_blank">kojo.sh → API keys</a>.</div>
       <div class="hint" style="color:var(--warn)">⚠ api.kojo.sh blocks browser-direct calls (no CORS), so the Kojo key must live in the <b>Cloudflare Worker relay</b>: run <code>npx wrangler secret put KOJO_API_KEY</code> and deploy — see README → Relay. This field is only a local copy in your browser (localStorage); the page itself talks to the relay.</div>
-      <label>Model</label>
+      <label for="kojoModel">Model</label>
       <select id="kojoModel">
         <option value="kojo" selected>kojo (default)</option>
       </select>
     </div>
     <div id="opencodeSettings" style="display:none">
-      <label>OpenCode API Key</label>
+      <label for="opencodeApiKey">OpenCode API Key</label>
       <input type="password" id="opencodeApiKey" placeholder="oc_sk_... (from opencode.ai console)" autocomplete="off">
       <div class="hint">Get your key from <a href="https://opencode.ai/console" target="_blank">opencode.ai/console</a> → Service Accounts</div>
       <div class="hint" style="color:var(--warn)">⚠ Note: OpenCode service accounts don't expose a standard LLM API endpoint</div>
-      <label>Model</label>
+      <label for="opencodeModel">Model</label>
       <select id="opencodeModel">
         <option value="opencode/zen">opencode/zen (curated)</option>
         <option value="opencode/go">opencode/go (subscription)</option>
       </select>
     </div>
     <div id="openrouterSettings" style="display:none">
-      <label>OpenRouter API Key</label>
+      <label for="openrouterApiKey">OpenRouter API Key</label>
       <input type="password" id="openrouterApiKey" placeholder="sk-or-... (from openrouter.ai)" autocomplete="off">
       <div class="hint">Leave empty to use the built-in relay — no key needed. Paste a key from <a href="https://openrouter.ai" target="_blank">openrouter.ai</a> to call OpenRouter directly and bill your own account.</div>
-      <label>Model</label>
+      <label for="openrouterModel">Model</label>
       <select id="openrouterModel">
         <option value="nvidia/nemotron-3.5-lightning:free">Nemotron 3.5 Lightning (free, fastest)</option>
         <option value="nvidia/nemotron-3-super-120b-a12b:free">Nemotron 3 Super 120B (free)</option>
@@ -160,16 +188,16 @@
     <div class="card">
       <div class="card-head"><span><span class="step">01</span> &nbsp;Patient details</span></div>
       <div class="card-body">
-        <label>Name — type new or select existing</label>
+        <label for="pname">Name — type new or select existing</label>
         <div style="display:flex;gap:8px">
           <div style="flex:2"><input id="pname" placeholder="e.g. Aarav / Sunita" oninput="renderPrevList();syncPnameSelect()"></div>
-          <div style="flex:1;min-width:140px"><select id="pnameSelect" onchange="pickPatientName()"><option value="">— Select patient —</option></select></div>
+          <div style="flex:1;min-width:140px"><select aria-label="Select an existing patient" id="pnameSelect" onchange="pickPatientName()"><option value="">— Select patient —</option></select></div>
         </div>
         <div style="display:grid;grid-template-columns:70px 1fr;gap:10px">
-          <div><label>Age</label><input id="age" type="number" min="0" max="100" placeholder="6" value="6"></div>
-          <div><label>Gender</label><select id="gender"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Child">Child</option><option value="Other">Other</option></select></div>
+          <div><label for="age">Age</label><input id="age" type="number" min="0" max="100" placeholder="6" value="6"></div>
+          <div><label for="gender">Gender</label><select id="gender"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Child">Child</option><option value="Other">Other</option></select></div>
         </div>
-        <label>Symptoms — in common language (include cause if known)</label>
+        <label for="symptoms">Symptoms — in common language (include cause if known)</label>
         <textarea id="symptoms" placeholder="e.g. cough, running nose, chest retractions, all caused due to allergy">cough, running nose, chest retractions, all caused due to allergy</textarea>
         <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
           <button class="btn-ghost" onclick="document.getElementById('scanInput').click()" style="min-height:36px;font-size:12px">📄 Scan Document</button>
@@ -194,21 +222,21 @@
           <span class="chip" data-kw="never well since taking antibiotics">antibiotic block</span>
         </div>
         <div id="symTokens" style="margin-top:4px"></div>
-        <label>Previous medicines given to this patient (saved under the name above)</label>
+        <label for="prevMed">Previous medicines given to this patient (saved under the name above)</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
           <div style="flex:2;min-width:140px"><input id="prevMed" placeholder="Medicine e.g. Sulphur"></div>
-          <div><select id="prevPot"><option>6C</option><option selected>30C</option><option>200C</option><option>1M</option><option>10M</option><option>LM</option></select></div>
-          <div><input id="prevDate" type="date"></div>
-          <div><input id="prevTime" type="time"></div>
+          <div><select aria-label="Potency of the previous medicine" id="prevPot"><option>6C</option><option selected>30C</option><option>200C</option><option>1M</option><option>10M</option><option>LM</option></select></div>
+          <div><input aria-label="Date the previous medicine was given" id="prevDate" type="date"></div>
+          <div><input aria-label="Time the previous medicine was given" id="prevTime" type="time"></div>
           <div><button class="btn-ghost" onclick="addPrevMed()">Add</button></div>
         </div>
-        <div style="margin-top:6px"><input id="prevSymptoms" placeholder="Symptoms treated e.g. cough, fever"></div>
+        <div style="margin-top:6px"><input aria-label="Symptoms that medicine was given for" id="prevSymptoms" placeholder="Symptoms treated e.g. cough, fever"></div>
         <div id="prevList" style="margin-top:6px"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div><label>Potency (for selected medicine)</label><select id="potency"><option>6C</option><option selected>30C</option><option>200C</option><option>1M</option><option>10M</option><option>LM</option></select></div>
-          <div><label>&nbsp;</label><button class="btn" id="saveBtn" style="margin-top:0" onclick="saveVisit()">Save visit</button><button class="btn-ghost" id="cancelEditBtn" style="display:none;width:100%;margin-top:6px" onclick="cancelEdit()">Cancel edit</button></div>
+          <div><label for="potency">Potency (for selected medicine)</label><select id="potency"><option>6C</option><option selected>30C</option><option>200C</option><option>1M</option><option>10M</option><option>LM</option></select></div>
+          <div><label for="remarks">&nbsp;</label><button class="btn" id="saveBtn" style="margin-top:0" onclick="saveVisit()">Save visit</button><button class="btn-ghost" id="cancelEditBtn" style="display:none;width:100%;margin-top:6px" onclick="cancelEdit()">Cancel edit</button></div>
         </div>
-        <label>Remarks</label>
+        <label for="remarks">Remarks</label>
         <input id="remarks" placeholder="e.g. Follow-up in 7 days, better after dose">
         <button class="btn" onclick="recommend()">AI Find Top 5 (ABC repertorisation) →</button>
         <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
@@ -245,7 +273,7 @@
     <div class="card-head"><span><span class="step">03</span> &nbsp;Individual case sheet</span><span id="caseCount" style="font-size:11px;color:var(--muted)"></span></div>
     <div class="card-body">
       <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end">
-        <div><label>Select patient</label><select id="casePatient" onchange="showCaseSheet()"><option value="">— Select —</option></select></div>
+        <div><label for="casePatient">Select patient</label><select id="casePatient" onchange="showCaseSheet()"><option value="">— Select —</option></select></div>
         <div style="display:flex;gap:8px"><button class="btn-ghost" onclick="refreshPatientList();showCaseSheet()">Refresh</button><button class="btn-ghost" onclick="exportCSV()">Export CSV</button><button class="btn-ghost" onclick="downloadPatientFile()">Download patient file</button></div>
       </div>
       <div id="caseHeader" style="margin:12px 0;font-size:13px"></div>
@@ -276,14 +304,14 @@
       <div style="border-top:1px solid var(--border);padding-top:12px">
         <div style="font-weight:800;font-size:13px;margin-bottom:8px">Add previous / given medicine to this case sheet</div>
         <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px">
-          <div><label>Medicine</label><input id="csMed" placeholder="e.g. Sulphur"></div>
-          <div><label>Potency</label><select id="csPot"><option>6C</option><option selected>30C</option><option>200C</option><option>1M</option><option>10M</option><option>LM</option></select></div>
-          <div><label>Date</label><input id="csDate" type="date"></div>
-          <div><label>Time</label><input id="csTime" type="time"></div>
+          <div><label for="csMed">Medicine</label><input id="csMed" placeholder="e.g. Sulphur"></div>
+          <div><label for="csPot">Potency</label><select id="csPot"><option>6C</option><option selected>30C</option><option>200C</option><option>1M</option><option>10M</option><option>LM</option></select></div>
+          <div><label for="csDate">Date</label><input id="csDate" type="date"></div>
+          <div><label for="csTime">Time</label><input id="csTime" type="time"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
-          <div><label>Symptoms / reason</label><input id="csSymptoms" placeholder="e.g. itching, red rash"></div>
-          <div><label>Remarks</label><input id="csRemarks" placeholder="e.g. first prescription"></div>
+          <div><label for="csSymptoms">Symptoms / reason</label><input id="csSymptoms" placeholder="e.g. itching, red rash"></div>
+          <div><label for="csRemarks">Remarks</label><input id="csRemarks" placeholder="e.g. first prescription"></div>
         </div>
         <button class="btn" style="max-width:280px" onclick="addCaseMed()">Add to case sheet</button>
       </div>
@@ -297,15 +325,49 @@
 <div class="sb-scrim" id="sbScrim" onclick="closeSidebar()"></div>
 
 <script src="data/embed.js"></script>
-<script src="data/abc_index.js"></script>
 <script src="data/stock.js"></script>
 <script src="data/tautopathy_data.js"></script>
-<script src="data/oorep_index.js"></script>
-<script src="data/oorep_rag.js"></script>
-<script src="data/boericke_full.js"></script>
-<script src="data/db_rag.js"></script>
-<script src="data/db_mm.js"></script>
 <script src="data/db_candidates.js"></script>
+<script>
+/* The repertory corpora are ~9 MB; they load after the page is usable, on the
+   first sign of intent, so a phone paints the composer immediately. */
+var HEAVY_SCRIPTS=[
+  'data/abc_index.js','data/oorep_index.js','data/oorep_rag.js',
+  'data/boericke_full.js','data/db_rag.js','data/db_mm.js'
+];
+var _heavyPromise=null;
+function loadScript(src){
+  return new Promise(function(resolve,reject){
+    var el=document.createElement('script');
+    el.src=src; el.async=false;
+    el.onload=function(){ resolve(src); };
+    el.onerror=function(){ reject(new Error('could not load '+src)); };
+    document.head.appendChild(el);
+  });
+}
+function ensureHeavyData(){
+  if(_heavyPromise) return _heavyPromise;
+  _heavyPromise=HEAVY_SCRIPTS.reduce(function(chain,src){
+    return chain.then(function(){
+      if(window.__homeoLoaded && window.__homeoLoaded[src]) return;
+      window.__homeoLoaded=window.__homeoLoaded||{};
+      return loadScript(src).then(function(){ window.__homeoLoaded[src]=1; })
+        .catch(function(e){ console.warn('repertory data', e); });
+    });
+  }, Promise.resolve()).then(function(){
+    try{ loadDB(); }catch(e){ console.warn('loadDB after lazy data', e); }
+    return true;
+  });
+  return _heavyPromise;
+}
+['pointerdown','keydown','touchstart'].forEach(function(ev){
+  window.addEventListener(ev, function(){ ensureHeavyData(); }, { once:true, passive:true });
+});
+setTimeout(function(){
+  var c=navigator.connection||{};
+  if(!c.saveData && !/2g/.test(c.effectiveType||'')) ensureHeavyData();
+}, 3000);
+</script>
 <script>
 let DB=[];
 let ABC=[];
@@ -1618,6 +1680,12 @@ function dbRepertorise(clauses){
           clauses:parts.length, corpus:N};
 }
 function recommend(){
+  if(!window.DB_RAG && !window.DB_MM && !window.__heavyTried){
+    window.__heavyTried=1;
+    chatStatus('Loading repertory data…', true);
+    ensureHeavyData().then(function(){ try{ recommend(); }catch(e){ console.warn(e); } });
+    return;
+  }
   const pname=document.getElementById('pname').value.trim() || '—';
   const ageVal=document.getElementById('age').value;
   const gender=document.getElementById('gender').value;
@@ -3433,6 +3501,8 @@ async function chatKojoDeepAnalysis(){
       if(tryB.length>topNames.length) topNames=tryB;
     }
     if(topNames.length){ CHAT.aiTop5=topNames; CHAT.aiText=full; }
+    if(webstat) webstat.textContent=(research.block?'web sources: '+research.sources.join(' + ')+' · checked':'no web results this turn')
+      +(local.rubrics?' · local repertorisation: '+local.symptoms+' symptoms / '+local.rubrics+' rubrics':'');
     var secs=Math.round((Date.now()-t0)/1000);
     chatStatus('Deep analysis done · '+secs+'s'+(webNames.length?(' · '+webNames.join('+')):' · no web'));
   }catch(e){
@@ -3643,6 +3713,7 @@ async function chatKojoAnswer(userText, attachList){
   var live=wrap?wrap.querySelector('.kojo-live'):null;
   var webstat=wrap?wrap.querySelector('.kojo-webstat'):null;
   chatStatus('Researching…', true);
+  try{ await ensureHeavyData(); }catch(e){ console.warn('repertory data', e); }
   var research={block:'', sources:[]};
   try{ research=await chatResearch(userText); }catch(e){ console.warn('web research', e); }
   // Local database check: rubric evidence + monographs from the bundled export.
@@ -3712,7 +3783,15 @@ async function chatKojoAnswer(userText, attachList){
     }
     var ctype=(response.headers.get('Content-Type')||'').toLowerCase();
     var full='';
-    var renderKojo=function(){ if(live){ live.innerHTML=esc(full).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\n\n+/g,'<br>') .replace(/\n/g,'<br>'); chatScroll(); } };
+    var renderKojo=function(){
+      if(!live) return;
+      var html=esc(full).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
+      var blocks=html.split(/\n{2,}/).filter(function(b){ return b.trim(); });
+      live.innerHTML=blocks.map(function(b){
+        return '<p class="kojo-p">'+b.replace(/\n/g,'<br>')+'</p>';
+      }).join('');
+      chatScroll();
+    };
     if(ctype.indexOf('text/event-stream')<0){
       var j=JSON.parse(await response.text());
       if(j.error?.message) throw new Error(j.error.message);
@@ -3757,9 +3836,24 @@ async function chatKojoAnswer(userText, attachList){
     if(topNames.length && live){
       var miss=[];
       topNames.forEach(function(n){ var k=chatLocalKey(n); if(!k || !window.DB_MM[k]) miss.push(n); });
-      live.innerHTML=(live.innerHTML||'')+'<div style="margin-top:8px;font-size:11.5px;opacity:.75">🗄️ Local database: '
+      live.innerHTML=(live.innerHTML||'')+'<div class="kojo-verify">🗄️ Local database: '
         +(topNames.length-miss.length)+'/'+topNames.length+' remedies verified'
         +(miss.length?' · outside DB (<i>wider materia medica</i>): '+esc(miss.join(', ')):'')+'</div>';
+      var strip='';
+      topNames.slice(0,5).forEach(function(n,i){
+        var k=chatLocalKey(n), mm=(k&&window.DB_MM)?window.DB_MM[k]:null;
+        var abbr=(mm&&mm.abbr)?String(mm.abbr):'';
+        var jsN=String(n).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var jsA=abbr.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        strip+='<div class="rx kojo-rx">'
+          +'<div class="rx-head"><span class="rx-rank">'+(i+1)+'</span><span class="rx-name">'+esc(n)+'</span>'
+          +(abbr?'<span class="rx-abbr">('+esc(abbr)+')</span>':'')
+          +(mm?'<span class="rx-badge ok">in local DB</span>':'<span class="rx-badge">wider materia medica</span>')
+          +'</div>'
+          +(mm?'<div class="rx-actions"><button type="button" class="rx-btn solid" onclick="selectMedicine(\''+jsN+'\',\''+jsA+'\',0,\'DB\')">Select &amp; save</button></div>':'')
+          +'</div>';
+      });
+      if(strip) live.innerHTML+='<div class="kojo-top5" aria-label="Final Top 5">'+strip+'</div>';
     }
     var secs=Math.round((Date.now()-t0)/1000);
     chatStatus('Answered by '+cfg.via+' · '+secs+'s'+(research.sources.length?' · '+research.sources.join('+'):'')+(local.rubrics?' · repertorised '+local.symptoms+' symptoms':''));
@@ -4035,6 +4129,16 @@ function chatHistoryRefreshBadge(){
 function chatHistoryRender(){
   var list=document.getElementById('chatHistList'); if(!list) return;
   var arr=chatHistoryAll();
+  var searchBox=document.getElementById('chatSearch');
+  var needle=searchBox?String(searchBox.value||'').trim().toLowerCase():'';
+  if(needle){
+    arr=arr.filter(function(r){
+      var hay=String(r.title||'');
+      ((r.state&&r.state.msgs)||[]).forEach(function(m){ hay+=' '+String(m.content||''); });
+      return hay.toLowerCase().indexOf(needle)>=0;
+    });
+    if(!arr.length){ list.innerHTML='<div class="chat-hist-empty">No saved chat matches that search.</div>'; return; }
+  }
   if(!arr.length){ list.innerHTML='<div class="chat-hist-empty">No saved chats yet. Anything you say here is kept on this device.</div>'; return; }
   arr.sort(function(a,b){
     if(!!a.pinned!==!!b.pinned) return a.pinned?-1:1;
@@ -4162,6 +4266,46 @@ function chatExportSlug(rec){
   }
   return String(text||'chat').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40)||'chat';
 }
+function chatImportPick(){ var el=document.getElementById('chatImportInput'); if(el) el.click(); }
+function chatHistoryImportFile(input){
+  var file=input && input.files && input.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(){
+    try{
+      var data=JSON.parse(String(reader.result||''));
+      var incoming=Array.isArray(data)?data:(data&&Array.isArray(data.chats)?data.chats:[]);
+      if(!incoming.length) throw new Error('no chats found in this file');
+      var arr=chatHistoryAll(), added=0, replaced=0;
+      incoming.forEach(function(r){
+        if(!r) return;
+        var msgs=[];
+        if(r.state && Array.isArray(r.state.msgs)) msgs=r.state.msgs.filter(function(m){ return m && m.role && m.content; });
+        else if(Array.isArray(r.messages)) msgs=r.messages.map(function(m){ return {role:m.role, content:String(m.text||m.content||'')}; });
+        if(!msgs.length) return;
+        var id=r.id||('c'+Date.now()+(Math.random()*1e6|0));
+        var when=Date.parse(r.savedAt);
+        var rec={id:id, savedAt:isNaN(when)?Date.now():when, step:'chat',
+          state:{msgs:msgs, aiTop5:(r.state&&r.state.aiTop5)||[]},
+          log:String(r.log||'')};
+        if(r.title) rec.title=String(r.title).slice(0,80);
+        var at=-1;
+        for(var i=0;i<arr.length;i++){ if(arr[i].id===id){ at=i; break; } }
+        if(at>=0){ arr[at]=rec; replaced++; } else { arr.unshift(rec); added++; }
+      });
+      arr.sort(function(a,b){
+        if(!!a.pinned!==!!b.pinned) return a.pinned?-1:1;
+        return b.savedAt-a.savedAt;
+      });
+      if(arr.length>30) arr.length=30;
+      chatHistoryWrite(arr);
+      chatHistoryRender();
+      chatHistoryRefreshBadge();
+      chatStatus('Imported '+added+(replaced?' · updated '+replaced:''));
+    }catch(e){ alert('Could not import that file: '+(e&&e.message||e)); }
+    input.value='';
+  };
+  reader.readAsText(file);
+}
 function chatHistoryExport(){
   var arr=chatHistoryAll();
   if(!arr.length){ alert('No saved chats to export yet — ask something first.'); return; }
@@ -4265,6 +4409,7 @@ function setView(v){
   try{ localStorage.setItem('homeo_view', isChat?'chat':'form'); }catch(e){}
   try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(e){}
   if(isChat){ var inp=document.getElementById('chatInput'); if(inp) setTimeout(function(){ inp.focus(); },60); }
+  else { try{ ensureHeavyData(); }catch(e){} }
 }
 
 /* ---------------- voice ---------------- */
@@ -4388,6 +4533,9 @@ var chatStatusRestoreTimer=null;
   if(!resumed) chatReset(true);
   chatHistoryRefreshBadge();
   chatHistoryRender();
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+    window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
+  }
   document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeSidebar(); });
   // Leaving the tab or the app is the last chance to write: flush immediately.
   function chatFlush(){

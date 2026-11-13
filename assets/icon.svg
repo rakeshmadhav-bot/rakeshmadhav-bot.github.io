@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="HomeoAI">
+  <rect width="512" height="512" rx="92" fill="#153B2F"/>
+  <path fill="#FBF9F3" d="M256 62c26 48 96 118 96 178a96 96 0 0 1-192 0c0-60 70-130 96-178Z"/>
+  <g stroke="#153B2F" stroke-width="15" stroke-linecap="round">
+    <path d="M256 178v96"/>
+    <path d="M256 226l-34 28"/>
+    <path d="M256 226l34 28"/>
+  </g>
+  <g fill="#153B2F">
+    <circle cx="256" cy="178" r="21"/>
+    <circle cx="256" cy="274" r="21"/>
+    <circle cx="222" cy="254" r="21"/>
+    <circle cx="290" cy="254" r="21"/>
+  </g>
+</svg>

@@ -10,6 +10,35 @@
 const UPSTREAM = 'https://openrouter.ai/api/v1/chat/completions';
 const REFERER = 'https://homeoai.github.io';
 const MAX_TOKENS = 1400;
+// Abuse guards. A report image is base64 in the JSON body, so 8 MB covers four
+// images plus a long case; anything larger is not a browser on this site.
+const MAX_BODY_BYTES = 8 * 1024 * 1024;
+// Per-isolate sliding window. Cloudflare runs many isolates, so this is a
+// speed bump for careless or scripted abuse rather than a hard quota — the
+// real ceiling is still kojo's own account limits.
+const RATE = { windowMs: 60000, max: 20 };
+const rateState = new Map();
+function clientKey(request) {
+  const ip = request.headers.get('CF-Connecting-IP')
+    || (request.headers.get('X-Forwarded-For') || '').split(',')[0].trim();
+  return ip || 'unknown';
+}
+function tooMany(request) {
+  const now = Date.now();
+  const key = clientKey(request);
+  const rec = rateState.get(key);
+  if (!rec || now - rec.startedAt > RATE.windowMs) {
+    if (rateState.size > 4000) rateState.clear(); // keep memory bounded
+    rateState.set(key, { startedAt: now, n: 1 });
+    return false;
+  }
+  rec.n += 1;
+  return rec.n > RATE.max;
+}
+function bodyTooLarge(request) {
+  const len = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(len) && len > MAX_BODY_BYTES;
+}
 const ALLOWED_ORIGINS = new Set([
   'https://homeoai.github.io',
   // The site still serves from the old owner name until the move to
@@ -129,7 +158,11 @@ async function readPage(url) {
 
 async function webSearch(request) {
   let payload;
-  try { payload = await request.json(); } catch (e) { return json({ error: { message: 'Invalid JSON body' } }, 400, request); }
+  try {
+    const raw = await request.text();
+    if (raw.length > 64 * 1024) return json({ error: { message: 'Request body too large' } }, 413, request);
+    payload = JSON.parse(raw);
+  } catch (e) { return json({ error: { message: 'Invalid JSON body' } }, 400, request); }
   const q = typeof payload.q === 'string' ? payload.q.trim().slice(0, 240) : '';
   if (q.length < 3) return json({ error: { message: 'Query too short' } }, 400, request);
   const n = Math.min(8, Math.max(1, Number(payload.n) || 5));
@@ -260,24 +293,40 @@ export default {
       if (request.method !== 'POST') return json({ error: { message: 'Method not allowed' } }, 405, request);
       const origin = request.headers.get('Origin');
       if (origin && !originAllowed(origin)) return json({ error: { message: 'Origin not allowed' } }, 403, request);
+      if (bodyTooLarge(request)) return json({ error: { message: 'Request body too large' } }, 413, request);
+      if (tooMany(request)) return json({ error: { message: 'Too many requests — wait a minute and try again.' } }, 429, request);
       return webSearch(request);
     }
     if (url.pathname === '/v1/health') {
       if (request.method !== 'GET') return json({ error: { message: 'Method not allowed' } }, 405, request);
-      return json({ ok: !!env.HOMEOPATHY_DB, database: env.HOMEOPATHY_DB ? 'configured' : 'missing', openrouter: env.OPENROUTER_API_KEY ? 'configured' : 'missing', kojo: env.KOJO_API_KEY ? 'configured' : 'missing', websearch: 'keyless' }, 200, request);
+      // "ok" tracks what the site actually needs: an AI key to answer with.
+      // The D1 search binding is optional (the library page uses bundled data).
+      const aiReady = !!(env.OPENROUTER_API_KEY || env.KOJO_API_KEY);
+      return json({ ok: aiReady, ai: aiReady ? 'configured' : 'missing', openrouter: env.OPENROUTER_API_KEY ? 'configured' : 'missing', kojo: env.KOJO_API_KEY ? 'configured' : 'missing', database: env.HOMEOPATHY_DB ? 'configured' : 'not-configured', websearch: 'keyless' }, 200, request);
     }
     if (request.method !== 'POST' || url.pathname !== '/v1/chat/completions') {
       return notFound(request);
     }
     const origin = request.headers.get('Origin');
     if (origin && !originAllowed(origin)) return json({ error: { message: 'Origin not allowed' } }, 403, request);
+    if (bodyTooLarge(request)) return json({ error: { message: 'Request body too large' } }, 413, request);
+    if (tooMany(request)) return json({ error: { message: 'Too many requests — wait a minute and try again.' } }, 429, request);
     if (!env.OPENROUTER_API_KEY && !env.KOJO_API_KEY) {
       return json({ error: { message: 'Relay key not configured' } }, 500, request);
     }
 
+    let raw;
+    try {
+      raw = await request.text();
+    } catch (e) {
+      return json({ error: { message: 'Unreadable body' } }, 400, request);
+    }
+    if (raw.length > MAX_BODY_BYTES) {
+      return json({ error: { message: 'Request body too large' } }, 413, request);
+    }
     let payload;
     try {
-      payload = await request.json();
+      payload = JSON.parse(raw);
     } catch (e) {
       return json({ error: { message: 'Invalid JSON body' } }, 400, request);
     }

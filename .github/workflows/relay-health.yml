@@ -1,0 +1,42 @@
+name: Relay health
+
+# Watches the Kojo/OpenRouter relay so a broken deploy is noticed before a
+# patient hits it. A failed run emails the repository owner (GitHub default).
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'   # twice an hour
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Health endpoint answers 200 with both keys present
+        run: |
+          set -o pipefail
+          url="https://homeoai-relay.rakeshmadhav111.workers.dev/v1/health"
+          code=$(curl -sS -o /tmp/health.json -w '%{http_code}' --max-time 20 "$url") || {
+            echo "::error::could not reach $url"; exit 1; }
+          echo "HTTP $code"
+          cat /tmp/health.json; echo
+          test "$code" = "200" || { echo "::error::health returned $code"; exit 1; }
+          python3 - <<'PY'
+          import json
+          d = json.load(open('/tmp/health.json'))
+          print(d)
+          if not d.get('ok'):
+              raise SystemExit('relay reports not ok: ' + json.dumps(d))
+          if d.get('kojo') != 'configured' and d.get('openrouter') != 'configured':
+              raise SystemExit('no AI key configured upstream')
+          PY
+
+      - name: Published site still answers
+        run: |
+          set -o pipefail
+          for path in recommender.html library.html styles/app.css; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "https://rakeshmadhav-bot.github.io/$path")
+            echo "$path -> $code"
+            test "$code" = "200" || { echo "::error::$path returned $code"; exit 1; }
+          done
