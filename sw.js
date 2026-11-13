@@ -1,7 +1,7 @@
 // HomeoAI service worker.
 // The shell is cached on install; the repertory corpora are cached the first
 // time they are used, so a second visit needs no network at all.
-const CACHE = 'homeoai-v1';
+const CACHE = 'homeoai-v2';
 const SHELL = [
   './',
   './index.html',

@@ -4421,6 +4421,9 @@ function chatHistoryContinue(id, silent){
   CHAT.emergency=false; CHAT.emergencyAck=false; CHAT.flags=[]; CHAT.redFlagYes=false;
   var log=document.getElementById('chatLog');
   if(log) log.innerHTML=rec.log||'';
+  // Chats saved before the header was dropped still carry its leftover line
+  // ("web sources: … · checked" / a stale "Thinking"): strip it on restore.
+  if(log) log.querySelectorAll('.kojo-webstat').forEach(function(n){ n.remove(); });
   if(log && !String(rec.log||'').trim() && CHAT.msgs.length){
     log.innerHTML='';
     CHAT.msgs.forEach(function(m){
