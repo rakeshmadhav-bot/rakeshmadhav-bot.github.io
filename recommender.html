@@ -75,6 +75,14 @@
   <div class="sb-foot">
     <button type="button" class="sb-item" id="settingsToggle" onclick="toggleSettings()">AI settings</button>
     <button type="button" class="sb-item" id="themeToggle" onclick="toggleTheme()">Theme <span class="sb-faint" id="themeLabel">Dark</span></button>
+    <div class="sb-size" role="group" aria-label="Text size">
+      <span class="sb-size-label">Text size</span>
+      <span class="sb-size-ctl">
+        <button type="button" id="fontDown" onclick="fontStep(-1)" aria-label="Decrease text size" title="Decrease text size">A−</button>
+        <button type="button" id="fontVal" onclick="fontReset()" aria-label="Reset text size to 100%" title="Reset to 100%">100%</button>
+        <button type="button" id="fontUp" onclick="fontStep(1)" aria-label="Increase text size" title="Increase text size">A+</button>
+      </span>
+    </div>
     <input type="file" id="chatImportInput" accept="application/json,.json" hidden onchange="chatHistoryImportFile(this)">
     <details class="menu sb-menu" id="moreMenu">
       <summary class="sb-item" aria-label="More actions">More</summary>
@@ -2166,6 +2174,22 @@ function selectMedicine(name, abbr, weight, source){
   setEditMode(null);
   alert(`Saved for ${pname} — ${new Date().toLocaleString()} — ${name} (${abbr}) ${potency}`);
 }
+/* Text size: five steps applied to the reading surfaces (chat answers and the
+   case sheet), remembered per browser. A− / A+ move one step, the % resets. */
+var FONT_STEPS=[0.9,1,1.1,1.25,1.4], _fontIdx=1;
+function fontApply(i, save){
+  _fontIdx=Math.max(0, Math.min(FONT_STEPS.length-1, i|0));
+  var v=FONT_STEPS[_fontIdx];
+  document.documentElement.style.setProperty('--text-scale', v);
+  var val=document.getElementById('fontVal');
+  if(val) val.textContent=Math.round(v*100)+'%';
+  var up=document.getElementById('fontUp'), dn=document.getElementById('fontDown');
+  if(up) up.disabled=_fontIdx===FONT_STEPS.length-1;
+  if(dn) dn.disabled=_fontIdx===0;
+  if(save!==false){ try{ localStorage.setItem('homeo_font', String(_fontIdx)); }catch(e){} }
+}
+function fontStep(d){ fontApply(_fontIdx+(d||0)); }
+function fontReset(){ fontApply(1); }
 function toggleTheme(){
   const cur = document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', cur);
@@ -2176,6 +2200,7 @@ function toggleTheme(){
   if(b) b.setAttribute('aria-label', cur==='dark' ? 'Switch to light theme' : 'Switch to dark theme');
 }
 try{ const _th=localStorage.getItem('homeo_theme')||'light'; document.documentElement.setAttribute('data-theme', _th); const _tl=document.getElementById('themeLabel'); if(_tl) _tl.textContent = _th==='dark' ? 'Light' : 'Dark'; const _tb=document.getElementById('themeToggle'); if(_tb) _tb.setAttribute('aria-label', _th==='dark' ? 'Switch to light theme' : 'Switch to dark theme'); }catch(e){}
+try{ const _fi=parseInt(localStorage.getItem('homeo_font'),10); fontApply(isNaN(_fi)?1:_fi, false); }catch(e){}
 try{ const _ot=document.getElementById('onlineToggle'); if(_ot) _ot.checked=!!onlineAssist; }catch(e){}
 try{ renderPrevList(); refreshPnameSelect(); }catch(e){}
 try{ const _pot=document.getElementById('potency'); if(_pot) _pot.addEventListener('change', ()=>{ if(lastTop5&&lastTop5.length) recommend(); }); }catch(e){}

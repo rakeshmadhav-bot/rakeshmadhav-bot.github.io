@@ -513,6 +513,7 @@ td{border-color:var(--border) !important}
 }
 
 @media print{
+  #chatLog,#formView{zoom:1}
   .sidebar,.mobile-bar,.sb-scrim,.container>div:first-child,.footer,.chat-shell{display:none !important}
   .container{grid-template-columns:1fr}
   .card,.result{box-shadow:none;border-color:#999}
@@ -616,6 +617,26 @@ body.library{background:var(--paper)}
 .sb-list::-webkit-scrollbar{width:6px}
 .sb-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 .sb-foot{display:grid;gap:1px;padding-top:8px;border-top:1px solid var(--border)}
+.sb-size{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:5px 10px;min-height:31px;font-family:var(--sans);font-size:13px;color:var(--ink);
+}
+.sb-size-ctl{display:flex;align-items:center;gap:3px}
+.sb-size-ctl button{
+  font-family:var(--sans);font-size:12px;font-weight:600;line-height:1;color:var(--ink);
+  background:none;border:1px solid var(--border);border-radius:6px;
+  min-width:27px;height:24px;padding:0 5px;cursor:pointer;
+}
+.sb-size-ctl button:hover{background:var(--sb-hover);border-color:var(--accent)}
+.sb-size-ctl button:disabled{opacity:.35;cursor:default}
+.sb-size-ctl button:disabled:hover{background:none;border-color:var(--border)}
+.sb-size-ctl #fontVal{
+  min-width:46px;font-weight:500;border-color:transparent;font-variant-numeric:tabular-nums;
+}
+.sb-size-ctl #fontVal:hover{border-color:var(--border)}
+/* the reading surfaces grow with the choice; the rail, composer and chrome stay
+   put — a scaled composer clips its placeholder on narrow screens */
+#chatLog,#formView{zoom:var(--text-scale,1)}
 .sb-menu{position:relative}
 .sb-menu > summary{list-style:none}
 .sb-menu > summary::-webkit-details-marker{display:none}
