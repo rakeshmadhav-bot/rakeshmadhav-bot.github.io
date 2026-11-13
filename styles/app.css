@@ -516,7 +516,7 @@ td{border-color:var(--border) !important}
 }
 
 @media print{
-  #chatLog,#formView{zoom:1}
+  #chatLog > *,#formView{zoom:1}
   .sidebar,.mobile-bar,.sb-scrim,.container>div:first-child,.footer,.chat-shell{display:none !important}
   .container{grid-template-columns:1fr}
   .card,.result{box-shadow:none;border-color:#999}
@@ -638,8 +638,11 @@ body.library{background:var(--paper)}
 }
 .sb-size-ctl #fontVal:hover{border-color:var(--border)}
 /* the reading surfaces grow with the choice; the rail, composer and chrome stay
-   put — a scaled composer clips its placeholder on narrow screens */
-#chatLog,#formView{zoom:var(--text-scale,1)}
+   put — a scaled composer clips its placeholder on narrow screens. The chat log
+   itself is never zoomed: scaling a scroll container shrinks its scrollable box
+   and makes the conversation hard to reach on phones, so its messages are. */
+#chatLog > *{zoom:var(--text-scale,1)}
+#formView{zoom:var(--text-scale,1)}
 .sb-menu{position:relative}
 .sb-menu > summary{list-style:none}
 .sb-menu > summary::-webkit-details-marker{display:none}

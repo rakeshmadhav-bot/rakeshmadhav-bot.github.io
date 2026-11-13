@@ -261,9 +261,7 @@
         <button class="btn-ghost" id="stockResetBtn" style="display:none" onclick="resetStock()">Use built-in</button>
       </div>
       <div class="hint" style="margin:-4px 0 10px">Your Excel updates? Save it as <b>CSV</b> (Excel → Save As → CSV UTF-8) and load it here — the page then checks that sheet. Stays offline. Tip: delete finished rows or set Drams to 0 to mark out of stock.</div>
-      <div id="aiExplain" role="status" style="display:none"></div>
       <div id="relPanel" role="status" style="display:none"></div>
-      <div id="clinicPanel" role="status" style="display:none"></div>
       <div id="tautoPanel" role="status" style="display:none"></div>
       <div id="qwenPanel" role="status" style="display:none"></div>
       <div id="results" class="results"><div style="text-align:center;color:var(--muted);padding:30px">Enter Name + Age + Gender + Symptoms (e.g. cough, running nose, chest retractions, due to allergy) → AI will weight all together</div></div>
@@ -1638,12 +1636,6 @@ function recommend(){
     return Math.round(24*share + 6*spread);
   }
   const ragNorm = k => String(k||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-  const aiDiv=document.getElementById('aiExplain');
-  aiDiv.style.display='block';
-  aiDiv.innerHTML=`<b>AI understood:</b> "${symRaw}" → <i>${expanded.slice(0,260)}${expanded.length>260?'...':''}</i> • <b>ABC repertorisation:</b> each symptom = one rubric (12 base, +3 K0 keynote 1561, +2 G1, +1 G2 text${boostSet.size?`, boosted ×${N} on ${[...boostSet].map(i=>`"${keywords[i]||''}"`).join(', ')}`:''}) • Age ${group} + Gender ${gender||'-'} (tie-break only)`
-    + (rag.hits.length ? `<br>📚 <b>RAG full-DB (${rag.hits.length} rubrics, OOREP publicum + ${window.DB_RAG?window.DB_RAG.rubrics.length:0} ext-repertory):</b> ` + rag.hits.slice(0,5).map(h=>`${h.txt} <span style="color:var(--muted)">[${h.rems.split(',').slice(0,6).join(' ')}]</span>`).join(' • ') : `<br>📚 RAG: no rubric hit`)
-    + `<br>🗄️ <b>DB repertorisation:</b> ${dbRep.rubrics} graded rubrics from ${dbRep.corpus.toLocaleString()} scanned — ${dbRep.symptoms}/${dbRep.clauses} symptoms matched`
-    + (dbRep.rows.length ? ' • ' + dbRep.rows.map(r=>`"${r.part.slice(0,34)}" → ${r.rubrics.length?r.rubrics[0].txt.slice(0,64):'no rubric'}`).join(' • ') : '');
   // legacy flat expansion (kept for compatibility; scoring uses per-symptom groups above)
   let expandedKeywords=[];
   keywords.forEach(kw=>{
@@ -1977,24 +1969,6 @@ function recommend(){
   const clinicRx = clinicPick ? suggestPotency(clinicPick, group, ageVal) : null;
   const clinicFu = clinicPick ? followupPlan(clinicPick) : '';
   window._rxPot = clinicRx ? clinicRx.pot : '';
-  const cp=document.getElementById('clinicPanel');
-  if(cp){
-    cp.style.display='block';
-    const vlist=topPool.slice(0,7).map((x,i)=>{
-      const col=x.verified?'var(--ok)':'var(--warn)';
-      const mark=(clinicPick && x.r.name===clinicPick.r.name && x.r.abbr===clinicPick.r.abbr)?' ✅':'' ;
-      return `<div style="margin-bottom:4px"><b>#${i+1} ${x.r.name} (${x.r.abbr})</b> → <span style="color:${col};font-weight:700">${x.verified?'✓ VERIFIED':'⚠ WEIGHT ONLY'}</span>${mark}<br><span style="color:var(--muted)">${x.verified?('essence: '+(x.essenceHits||[]).join(', ')):'no essence match in offline texts — weightage only'}</span></div>`;
-    }).join('');
-    cp.innerHTML=`⚕️ <b>Clinical verification — Qwen-style 7 steps (offline texts: Boericke/Kent/Phatak + ABC aggregate)</b><br>`
-      +`<b>1 Translation:</b> see AI-understood line above.<br>`
-      +`<b>2 Grading:</b> ${caseGrades.map(c=>`<span class="rtag" style="margin-right:4px">${esc(c.kw)}: ${esc(c.grades.join(' · '))}</span>`).join('')}<br>`
-      +`<b>3 Repertorisation:</b> weight order (see scores). <b>4 MM verification:</b><br>${vlist}`
-      +`<b>5 Context:</b> age ${ageVal||'?'} (${group})${gender?', '+gender:''} — vitality-adjusted potency; stock badges on cards; already-given check above where applicable.<br>`
-      +(clinicPick?`<b>6 Potency:</b> ${clinicPick.r.name} → <b>${clinicRx.pot}</b> — ${clinicRx.why}.<br><b>7 Follow-up:</b> ${clinicFu}`:'')
-      +(()=>{ const _pi=matchInstructions((keywords||[]).join(', ')); return _pi.length?`<br><b>8 Patient instructions (${_pi.length}):</b> `+_pi.map(c=>`<div style="margin-top:4px">📌 <b>${esc(c.condition)}</b> — ${esc(c.instructions)}<br><span style="color:var(--warn)">⚠ ${esc(c.red_flags)}</span> <span style="color:var(--muted)">• ${esc(c.followup)}</span></div>`).join(''):''; })()
-      +`<br><b>9 Expert rules (offline: Acute/Tempraz/Element/Seigal):</b> case [${caseTags.acute?'ACUTE':''}${caseTags.thermal?' '+caseTags.thermal:''}${caseTags.mindLed?' MIND-LED('+caseTags.mindCount+')':''}${caseTags.suppression?' SUPPRESSION-FLAG':''} ]${clinicPick&&clinicPick.expTags&&clinicPick.expTags.length?` — pick tags: ${clinicPick.expTags.join(', ')} (Exp+${clinicPick.expBonus||0})`:''}`
-      +(()=>{ const _cc=curedMatches(keywords,3); return _cc.length?`<br><b>10 Cured cases (reference, ${window.CURED_CASES?window.CURED_CASES.length:0} seeds):</b> `+_cc.map(x=>`<div style="margin-top:4px">🏷️ <b>${esc(x.c.remedy)} (${esc(x.c.abbr)})</b> — ${esc(x.c.symptoms.join(', '))} → ${esc(x.c.outcome)} <span style="color:var(--muted)">[${esc(x.c.source)}]</span></div>`).join(''):''; })();
-  }
   // Tautopathy layer: scan symptoms + previous medicines for drugs/vaccines/toxins
   try{
     const _tautoSrc = (symRaw||'')+' '+(_prevList||[]).map(p=>[p.med,p.symptoms].filter(Boolean).join(' ')).join(' ');
