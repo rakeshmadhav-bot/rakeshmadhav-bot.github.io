@@ -12,6 +12,9 @@ const REFERER = 'https://homeoai.github.io';
 const MAX_TOKENS = 1400;
 const ALLOWED_ORIGINS = new Set([
   'https://homeoai.github.io',
+  // The site still serves from the old owner name until the move to
+  // homeoai.github.io is complete; both are the same pages.
+  'https://rakeshmadhav-bot.github.io',
   'http://localhost:8000',
   'http://127.0.0.1:8000',
 ]);
