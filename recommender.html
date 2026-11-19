@@ -120,6 +120,19 @@
 .sb-sync-panel .chat-hist-empty{padding:0;font-size:12px}
 .sb-sync-panel .sb-link{text-align:left}
 .sb-sync-panel .sb-search{width:100%}
+.sb-sync-google{
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  padding:8px 10px;border:1px solid var(--border);border-radius:8px;
+  background:var(--card);color:var(--ink);font:inherit;font-size:13px;font-weight:600;
+  cursor:pointer;white-space:nowrap;
+}
+.sb-sync-google:hover{background:var(--sb-hover)}
+.sb-sync-google:focus-visible{outline:2px solid var(--accent,currentColor);outline-offset:2px}
+.sb-sync-google svg{flex:none}
+.sb-sync-or{
+  text-align:center;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);border-top:1px solid var(--border);padding-top:8px;margin-top:2px;
+}
 @media print{.kq-progress,.kq-actions{display:none}}
 </style>
 </head>
@@ -178,9 +191,19 @@
       </button>
       <div id="syncPanel" class="sb-sync-panel" hidden>
         <div id="syncSignedOut" class="sb-sync-block">
+          <button type="button" class="sb-sync-google" id="syncGoogleBtn" onclick="syncGoogle()">
+            <svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true" focusable="false">
+              <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+              <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
+              <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.34z"/>
+              <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.34C4.68 5.16 6.66 3.58 9 3.58z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+          <div class="chat-hist-empty">Sign in with the Google account you already use, and your chats follow you to every device you sign in on.</div>
+          <div class="sb-sync-or">or use an email link</div>
           <input id="syncEmail" class="sb-search" type="email" placeholder="you@example.com" autocomplete="email" aria-label="Email for the sign-in link">
           <button type="button" class="sb-link" onclick="syncSendLink()">Email me a sign-in link</button>
-          <div class="chat-hist-empty">No password: we email you a link, you tap it once, and this device is signed in. Your chats then follow you to every device you sign in on.</div>
         </div>
         <div id="syncSignedIn" class="sb-sync-block" hidden>
           <div id="syncWho" class="chat-hist-empty"></div>
@@ -4246,7 +4269,7 @@ function syncToggle(){
   var p=document.getElementById('syncPanel'); if(!p) return;
   p.hidden=!p.hidden;
   syncRenderUi();
-  if(!p.hidden && !(homeoSync.client&&homeoSync.user)){ var e=document.getElementById('syncEmail'); if(e&&!e.hidden&&syncConfigured()) e.focus(); }
+  if(!p.hidden && !(homeoSync.client&&homeoSync.user) && syncConfigured()){ var g=document.getElementById('syncGoogleBtn'); if(g) g.focus(); }
 }
 async function syncInit(){
   syncRenderUi();
@@ -4281,6 +4304,21 @@ function syncAfterSignIn(){
     console.warn('chat sync', e);
     syncStatusLine('Signed in, but the server copy could not be read — showing this device\u2019s chats.');
   });
+}
+/* Google sign-in (OAuth through Supabase): the page never sees the password, and
+   the account is the same Gmail address on every device. The provider must be
+   switched on in Supabase — see README → "Online chat sync". */
+async function syncGoogle(){
+  if(!syncConfigured()){ syncRenderUi(); return; }
+  if(!homeoSync.client){ syncStatusLine('Sync is still starting — try again in a moment.'); return; }
+  syncStatusLine('Opening Google…');
+  try{
+    var res=await homeoSync.client.auth.signInWithOAuth({
+      provider:'google',
+      options:{ redirectTo:location.origin+location.pathname, queryParams:{prompt:'select_account'} }
+    });
+    if(res && res.error) syncStatusLine('Could not open Google sign-in: '+res.error.message);
+  }catch(e){ syncStatusLine('Could not open Google sign-in: '+String(e&&e.message||e)); }
 }
 async function syncSendLink(){
   if(!syncConfigured()){ syncRenderUi(); return; }
