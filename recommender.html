@@ -65,6 +65,16 @@
 .kq-rules{margin-top:16px;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--card2)}
 .kq-rules summary{cursor:pointer;font-weight:650;font-size:12.5px}
 .kq-rules ul{margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.6}
+.kq-own-opt > span{color:var(--muted)}
+.kq-own-box{margin:8px 0 2px 26px}
+.kq-own-box > label{display:block;font-family:var(--sans);font-size:11.5px;font-weight:400;letter-spacing:0;color:var(--muted);margin-bottom:4px}
+.kq-own-box input[type="text"]{width:100%;font-size:13px;min-height:40px}
+.kq-own-summary{margin-top:14px}
+.kq-own-summary:empty{display:none}
+.kq-own-h{font-family:var(--serif);font-size:14px;font-weight:600;margin:0 0 2px}
+.kq-own-summary ul{margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.55}
+.kq-own-summary li{margin-bottom:4px}
+.kq-own-summary li b{font-weight:650}
 #kqResult{display:none;margin-top:6px}
 #kqResult.on{display:block}
 .kq-print-only{display:none}
@@ -366,6 +376,7 @@
         <div class="card-head" style="border-top:1px solid var(--rule);margin-top:22px;padding-left:0;padding-right:0"><span><span class="step">◎</span> &nbsp;Your constitutional picture</span></div>
         <div class="kq-rank" id="kqRank"></div>
         <p class="kq-note" id="kqVerdict"></p>
+        <div class="kq-own-summary" id="kqOwnList"></div>
         <details class="kq-rules" id="kqRules">
           <summary>How the scores were calculated</summary>
           <ul id="kqRulesBody"></ul>
@@ -4587,12 +4598,18 @@ function kqRender(){
   KQ_QS.forEach(function(it){
     if(it.s){ html+='<h3 class="kq-sec">'+it.s+'</h3>'; return; }
     n++;
-    html+='<div class="kq-q" role="radiogroup" aria-labelledby="kq-h'+n+'"><div class="qn">Question '+n+(it.opt?' · optional':'')+'</div><h4 id="kq-h'+n+'">'+it.q+'</h4><div class="kq-opts">';
+    html+='<div class="kq-q"><div class="qn">Question '+n+(it.opt?' · optional':'')+'</div><h4 id="kq-h'+n+'">'+it.q+'</h4><div class="kq-opts" role="radiogroup" aria-labelledby="kq-h'+n+'">';
     it.o.forEach(function(op){
       html+='<label class="kq-opt"><input type="radio" name="kq'+n+'" value="'+op[1]+'" onchange="kqPick(this)"><span>'+op[0]+'</span></label>';
     });
     if(it.opt) html+='<label class="kq-opt"><input type="radio" name="kq'+n+'" value="" onchange="kqPick(this)"><span>Not applicable — skip this question</span></label>';
-    html+='</div></div>';
+    // Every question takes an answer in the patient's own words: none of the
+    // printed options may fit, and a forced choice would corrupt the score.
+    html+='<label class="kq-opt kq-own-opt"><input type="radio" name="kq'+n+'" value="__own" onchange="kqPick(this)"><span>None of these — write your answer</span></label>';
+    html+='</div><div class="kq-own-box" id="kqOwn'+n+'" hidden>'
+      +'<label for="kqOwnIn'+n+'">Your answer to question '+n+'</label>'
+      +'<input type="text" id="kqOwnIn'+n+'" name="kqOwn'+n+'" maxlength="240" autocomplete="off" placeholder="Write it in your own words" oninput="kqProgress()" onkeydown="if(event.key===\'Enter\')event.preventDefault()">'
+      +'</div></div>';
   });
   host.innerHTML=html;
   kqProgress();
@@ -4606,6 +4623,15 @@ function kqAnswers(){
   }
   return out;
 }
+function kqEsc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function kqOwnText(n){
+  var el=document.getElementById('kqOwnIn'+n);
+  return el?el.value.trim():'';
+}
 function kqPick(input){
   var form=input.form||document.getElementById('kqForm');
   if(!form) return;
@@ -4614,18 +4640,37 @@ function kqPick(input){
     var lab=group[i].closest('label');
     if(lab) lab.classList.toggle('is-on', group[i].checked);
   }
+  // The text box belongs to the "write your answer" option: it opens when that
+  // option is picked, and hides again if a printed option is chosen. What was
+  // typed stays put, so a mistaken tap does not lose it.
+  var own=document.getElementById('kqOwn'+input.name.slice(2));
+  var isOwn=input.checked && input.value==='__own';
+  if(own){
+    own.hidden=!isOwn;
+    if(isOwn){
+      var t=own.querySelector('input');
+      if(t) try{ t.focus({preventScroll:true}); }catch(e){}
+    }
+  }
   kqProgress();
 }
 function kqProgress(){
-  var answers=kqAnswers(), required=0, done=0;
+  var answers=kqAnswers(), required=0, done=0, qNo=0, emptyOwn=0;
   KQ_QS.forEach(function(it,i){
     if(it.s) return;
+    qNo++;
     if(it.opt) return;
     required++;
-    if(answers[kqIndex(i)]!==null) done++;
+    var v=answers[kqIndex(i)];
+    if(v==='__own' && kqOwnText(qNo)===''){ if(!emptyOwn) emptyOwn=qNo; }
+    else if(v!==null) done++;
   });
   var pct=required?Math.round(done*100/required):0;
-  var c=document.getElementById('kqCount'); if(c) c.textContent=done+' of '+required+' answered';
+  // The submit button stays disabled until every required question is answered;
+  // say which one is waiting on the patient's own words, or the greyed button
+  // looks like a fault.
+  var c=document.getElementById('kqCount');
+  if(c) c.textContent=done+' of '+required+' answered'+(emptyOwn?' · add your words to question '+emptyOwn:'');
   var p=document.getElementById('kqPct'); if(p) p.textContent=pct+'%';
   var b=document.getElementById('kqBar'); if(b) b.style.width=pct+'%';
   var s=document.getElementById('kqSubmitBtn'); if(s) s.disabled=done<required;
@@ -4641,32 +4686,45 @@ function kqIndex(qPos){
 }
 function kqSubmit(e){
   if(e && e.preventDefault) e.preventDefault();
-  var answers=kqAnswers(), tally={}, answered=0, missing=[], qNo=0;
+  var answers=kqAnswers(), tally={}, answered=0, missing=[], missingOwn={}, qNo=0;
   KQ_QS.forEach(function(it,i){
     if(it.s) return;
     qNo++;
     if(it.opt) return;
-    if(answers[kqIndex(i)]===null) missing.push(qNo);
+    var v=answers[kqIndex(i)];
+    if(v===null) missing.push(qNo);
+    else if(v==='__own' && kqOwnText(qNo)===''){ missing.push(qNo); missingOwn[qNo]=1; }
   });
   var notice=document.getElementById('kqNotice');
   if(missing.length){
     // Enter in the form or a programmatic submit must not score a half-finished run.
-    if(notice) notice.textContent='Answer the remaining '+missing.length+' question'+(missing.length>1?'s':'')+' first — question '+missing[0]+' is still open.';
+    if(notice) notice.textContent='Answer the remaining '+missing.length+' question'+(missing.length>1?'s':'')+' first — question '+missing[0]+(missingOwn[missing[0]]?' needs your own words written in':' is still open')+'.';
     var group=document.querySelectorAll('#kqForm .kq-q')[missing[0]-1];
     if(group && group.scrollIntoView) group.scrollIntoView({behavior:'smooth',block:'center'});
-    var first=group && group.querySelector('input[type="radio"]');
+    var first=group && (missingOwn[missing[0]] ? group.querySelector('.kq-own-box input') : group.querySelector('input[type="radio"]'));
     if(first) try{ first.focus({preventScroll:true}); }catch(err){}
     return;
   }
   if(notice) notice.textContent='';
+  var ownNotes=[], seq=0;
   KQ_QS.forEach(function(it,i){
     if(it.s) return;
+    seq++;
     var v=answers[kqIndex(i)];
     if(v===null) return;
     answered++;
+    // A written answer scores nothing — it neither fits nor contradicts a printed
+    // option, so it is carried into the result verbatim and left out of the tally.
+    if(v==='__own'){ ownNotes.push({n:seq, q:it.q, text:kqOwnText(seq)}); return; }
     if(!v) return;
     tally[v]=(tally[v]||0)+1;
   });
+  var ownBox=document.getElementById('kqOwnList');
+  if(ownBox) ownBox.innerHTML = ownNotes.length
+    ? '<h4 class="kq-own-h">In your own words</h4><ul>'+ownNotes.map(function(o){
+        return '<li><b>Q'+o.n+'. '+kqEsc(o.q)+'</b> — '+kqEsc(o.text)+'</li>';
+      }).join('')+'</ul>'
+    : '';
   var ranked=Object.keys(tally).map(function(k){
     return {code:k, pts:tally[k], offered:KQ_OFFERED[k]||1};
   }).sort(function(a,b){
@@ -4701,7 +4759,8 @@ function kqSubmit(e){
   } else {
     verdict='<b>'+top.n+'</b> fits most of your answers by a clear margin. The constitution suggests the remedy; the whole case — the complaint, its modalities, your history — decides whether it is prescribed. Study it in the materia medica before acting on it.';
   }
-  verdict+=' Scored from '+answered+' answer'+(answered===1?'':'s')+'.';
+  verdict+=' Scored from '+answered+' answer'+(answered===1?'':'s')
+    +(ownNotes.length?(', '+ownNotes.length+' of them written in your own words and left unscored'):'')+'.';
   var v=document.getElementById('kqVerdict'); if(v) v.innerHTML=verdict;
   var body=document.getElementById('kqRulesBody');
   if(body){
@@ -4725,9 +4784,10 @@ function kqPrintPrepare(){
     n++;
     var el=form && form.querySelector('input[name="kq'+n+'"]:checked');
     if(!el) return;
-    var lab=el.closest('label');
-    var txt=lab?lab.textContent.replace(/\s+/g,' ').trim():'';
-    rows.push('<tr><td>'+n+'</td><td>'+it.q+'</td><td>'+txt+'</td></tr>');
+    var txt;
+    if(el.value==='__own'){ txt='“'+kqOwnText(n)+'” (written answer)'; }
+    else { var lab=el.closest('label'); txt=lab?lab.textContent.replace(/\s+/g,' ').trim():''; }
+    rows.push('<tr><td>'+n+'</td><td>'+it.q+'</td><td>'+kqEsc(txt)+'</td></tr>');
   });
   var d=new Date();
   var when=d.toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
@@ -4757,7 +4817,12 @@ function kqReset(){
     for(var i=0;i<inputs.length;i++){ inputs[i].checked=false; }
     var labs=form.querySelectorAll('label.kq-opt');
     for(var j=0;j<labs.length;j++){ labs[j].classList.remove('is-on'); }
+    var ownIns=form.querySelectorAll('.kq-own-box input');
+    for(var k=0;k<ownIns.length;k++){ ownIns[k].value=''; }
+    var ownBoxes=form.querySelectorAll('.kq-own-box');
+    for(var m=0;m<ownBoxes.length;m++){ ownBoxes[m].hidden=true; }
   }
+  var ownList=document.getElementById('kqOwnList'); if(ownList) ownList.innerHTML='';
   var box=document.getElementById('kqResult'); if(box) box.classList.remove('on');
   var notice=document.getElementById('kqNotice'); if(notice) notice.textContent='';
   var extra=document.getElementById('kqPrintExtra'); if(extra) extra.innerHTML='';

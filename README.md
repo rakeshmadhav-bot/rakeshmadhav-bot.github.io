@@ -173,8 +173,14 @@ points and its share of the questions that offered it.
   remedy was offered, so a remedy that appears in fewer questions is not
   penalised. Ties break on that percentage; the explanation of the scoring is
   collapsed under the result and appears only after submission.
+- **None of these — write your answer** is offered under every question, for a
+  patient whose picture no printed option fits. The words are carried into the
+  result and the PDF verbatim and are left out of the scoring, since a written
+  answer neither fits nor contradicts a printed option; the question still
+  counts as answered, and the progress line says when a chosen text box is still
+  empty.
 - **Nothing leaves the browser** — no storage, no request; *Start over* clears
-  the answers and the result.
+  the answers, the written answers and the result.
 - It is a **screening aid**: the result narrows the field for the practitioner,
   and the reminder on the page says the remedy is confirmed from the whole case
   and the materia medica, alongside regular medical care.
