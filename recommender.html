@@ -29,10 +29,12 @@
 /* The view is a flex child of .main (height:100dvh, overflow:hidden), so it has
    to own its scrolling the way #formView does, or the questions below the fold
    are clipped with no way to reach them. */
-#constitutionView{flex:1 1 auto;min-height:0;overflow-y:auto;padding-bottom:26px}
+#constitutionView{flex:1 1 auto;min-height:0;overflow-y:auto}
 /* One centred column: .container's 400px/1fr grid would park the card in the
-   narrow first track. */
-.kq-wrap{max-width:900px;margin:26px auto 8px;padding:0 24px}
+   narrow first track. The deep bottom padding is breathing room under the
+   sticky action bar — it must live here, not on the scrolling view, because
+   padding on the scroll container shrinks the area a sticky child may pin to. */
+.kq-wrap{max-width:900px;margin:26px auto 8px;padding:0 24px 24px}
 .kq-lead{font-size:13.5px;color:var(--muted);max-width:66ch;margin:6px 0 16px}
 .kq-sec{font-family:var(--serif);font-size:16.5px;font-weight:600;margin:26px 0 6px;padding-bottom:5px;border-bottom:1px solid var(--rule)}
 .kq-sec:first-of-type{margin-top:6px}
@@ -47,7 +49,7 @@
 .kq-opt input[type="radio"]:focus{box-shadow:none}
 .kq-opt > span{flex:1;min-width:0}
 .kq-opt.is-on{border-color:var(--accent);background:var(--accent-soft)}
-.kq-progress{position:sticky;bottom:0;z-index:5;background:var(--card);border-top:1px solid var(--rule);padding:10px 0 4px;margin-top:18px}
+.kq-progress{position:sticky;bottom:0;z-index:5;background:var(--card);border:1px solid var(--rule);border-radius:var(--radius-sm);box-shadow:0 4px 16px rgba(20,20,20,.08);padding:10px 14px 8px;margin-top:18px}
 .kq-progress .row{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);margin-bottom:6px}
 .kq-bar{height:7px;border:1px solid var(--border);border-radius:99px;background:var(--card2);overflow:hidden}
 .kq-bar > i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
@@ -361,16 +363,6 @@
     <div class="card-body">
       <p class="kq-lead">Answer for yourself, as you have been for most of your life — not only while you are ill. Choose the one answer that fits best in each question; if two fit, choose the stronger. Your answers are scored in this browser, and the three constitutional remedies that best fit your picture are shown at the end.</p>
       <form id="kqForm" onsubmit="kqSubmit(event)"></form>
-      <div class="kq-progress">
-        <div class="row"><span id="kqCount">0 of 40 answered</span><span id="kqPct">0%</span></div>
-        <div class="kq-bar"><i id="kqBar"></i></div>
-        <div class="kq-actions">
-          <button class="btn" type="submit" id="kqSubmitBtn" form="kqForm" disabled>See my constitutional remedies →</button>
-          <button class="btn-ghost" type="button" onclick="kqReset()">Start over</button>
-          <span style="font-size:11.5px;color:var(--muted)">Question 28 is optional.</span>
-        </div>
-        <p id="kqNotice" class="kq-note" role="status" style="margin:8px 0 0"></p>
-      </div>
       <div id="kqResult" aria-live="polite">
         <div class="kq-print-only" id="kqPrintExtra"></div>
         <div class="card-head" style="border-top:1px solid var(--rule);margin-top:22px;padding-left:0;padding-right:0"><span><span class="step">◎</span> &nbsp;Your constitutional picture</span></div>
@@ -382,13 +374,24 @@
           <ul id="kqRulesBody"></ul>
         </details>
         <p class="kq-note"><b>This is a screening aid, not a prescription.</b> A constitutional remedy is confirmed by taking the whole case — the complaint, its modalities, the mental picture and the history — and by checking the result against the materia medica. Keep conventional diagnosis and treatment in place for anything serious.</p>
-        <div class="kq-actions" id="kqExportRow" style="margin-top:14px">
-          <button class="btn" type="button" onclick="kqExportPdf()">Save / export as PDF</button>
-          <span style="font-size:11.5px;color:var(--muted)">Opens your browser’s print dialog — choose <b>Save as PDF</b>. The file stays on your device.</span>
-        </div>
         <div class="kq-print-only" id="kqPrintAnswers"></div>
       </div>
     </div>
+  </div>
+  <!-- Last child of the scrolling content on purpose: a bottom-sticky bar can
+       only ride the viewport while its flow position is further down the page,
+       so keeping it after the result keeps Submit, Start over and Save / export
+       on screen at every scroll position. -->
+  <div class="kq-progress">
+    <div class="row"><span id="kqCount">0 of 40 answered</span><span id="kqPct">0%</span></div>
+    <div class="kq-bar"><i id="kqBar"></i></div>
+    <div class="kq-actions">
+      <button class="btn" type="submit" id="kqSubmitBtn" form="kqForm" disabled>See my constitutional remedies →</button>
+      <button class="btn-ghost" type="button" onclick="kqReset()">Start over</button>
+      <button class="btn-ghost" type="button" id="kqExportBtn" onclick="kqExportPdf()" title="Opens your browser's print dialog — choose Save as PDF">Save / export as PDF</button>
+      <span style="font-size:11.5px;color:var(--muted)">Question 28 is optional.</span>
+    </div>
+    <p id="kqNotice" class="kq-note" role="status" style="margin:8px 0 0"></p>
   </div>
 </div>
 </section>
@@ -4801,7 +4804,9 @@ function kqExportPdf(){
   var box=document.getElementById('kqResult');
   if(!box || !box.classList.contains('on')){
     var n=document.getElementById('kqNotice');
-    if(n) n.textContent='Submit the questionnaire first — then you can save the result as a PDF.';
+    if(n) n.textContent='Answer the questions and submit them first — then you can save the result as a PDF.';
+    var b=document.getElementById('kqSubmitBtn');
+    if(b) try{ b.focus({preventScroll:true}); }catch(e){}
     return;
   }
   kqPrintPrepare();
