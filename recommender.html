@@ -359,7 +359,7 @@
 <section id="constitutionView" style="display:none">
 <div class="kq-wrap" role="main" aria-label="Know your Constitution">
   <div class="card">
-    <div class="card-head" id="kqHead"><span><span class="step">◎</span> &nbsp;Know your Constitution</span><span style="font-size:11px;color:var(--muted)">Self-scoring · 41 questions</span></div>
+    <div class="card-head" id="kqHead"><span><span class="step">◎</span> &nbsp;Know your Constitution</span><span style="font-size:11px;color:var(--muted)">Self-scoring · 10 questions</span></div>
     <div class="card-body">
       <p class="kq-lead">Answer for yourself, thinking about how you have been for most of your life — not just while you are ill. In each question pick the one answer that fits best; if two fit, pick the stronger one. There are no right or wrong answers. If none of the choices fits, choose <b>None of these — write your answer</b> and say it in your own words. Everything is scored in this browser, and the three remedies that fit you best are shown at the end.</p>
       <form id="kqForm" onsubmit="kqSubmit(event)"></form>
@@ -383,13 +383,13 @@
        so keeping it after the result keeps Submit, Start over and Save / export
        on screen at every scroll position. -->
   <div class="kq-progress">
-    <div class="row"><span id="kqCount">0 of 40 answered</span><span id="kqPct">0%</span></div>
+    <div class="row"><span id="kqCount">0 of 10 answered</span><span id="kqPct">0%</span></div>
     <div class="kq-bar"><i id="kqBar"></i></div>
     <div class="kq-actions">
       <button class="btn" type="submit" id="kqSubmitBtn" form="kqForm" disabled>See my constitutional remedies →</button>
       <button class="btn-ghost" type="button" onclick="kqReset()">Start over</button>
       <button class="btn-ghost" type="button" id="kqExportBtn" onclick="kqExportPdf()" title="Opens your browser's print dialog — choose Save as PDF">Save / export as PDF</button>
-      <span style="font-size:11.5px;color:var(--muted)">Question 28 is optional.</span>
+      <span style="font-size:11.5px;color:var(--muted)">Ten questions, about two minutes.</span>
     </div>
     <p id="kqNotice" class="kq-note" role="status" style="margin:8px 0 0"></p>
   </div>
@@ -4535,54 +4535,16 @@ var KQ_REMEDIES={
   'ARG-N':{n:'Argentum nitricum',d:'Hurried and anticipatory. Anxious before events, craves sweets, bloated with gas, worse from heat; impulsive, fears crowds and heights.'}
 };
 var KQ_QS=[
-{s:'Your body and how you look'},
-{q:'Your build — how your body has always been',o:[['Thin and bony; I find it hard to put on weight','SIL'],['Thin on top but with a large or bloated belly','LYC'],['Soft and fleshy; I put on weight easily and it feels flabby','CALC'],['Big-framed, with a red face and a body that runs warm','SULPH']]},
-{q:'Your skin',o:[['Dry and rough; it cracks at the fingertips and heels','SIL'],['Oily and looks unclean; I wash often and it itches','SULPH'],['Pale, damp, cold and clammy','CALC'],['Rashes in the skin folds or behind the ears that ooze sticky fluid','GRAPH']]},
-{q:'Your hair and nails',o:[['Fine hair; ridged or brittle nails; white spots on the nails','SIL'],['Hair falls out after a loss or childbirth; dry, flaky scalp','NAT-M'],['Thick, coarse, oily hair','SULPH'],['Pale, fine hair and nails that grow slowly','CALC']]},
-{q:'Your face',o:[['Fair, delicate skin that blushes easily','PHOS'],['Dark hair, dull or olive skin, dark rings under the eyes','NAT-M'],['Pale and puffy; sweated a lot on the head as a child','CALC'],['Dull, yellowish skin; dry cracked lips; I look worn out','SEP']]},
-{q:'Sweating',o:[['My head sweats easily and smells sour; I sweat with any effort','CALC'],['Smelly foot sweat that soaks my socks; my feet are cold','SIL'],['Heavy night sweats that stain the sheets and smell','SULPH'],['Clammy hands; I sweat before events and appointments','ARG-N']]},
-{q:'Your hands and feet',o:[['My feet burn at night and I have to stick them out of the covers','SULPH'],['Hands and feet are icy even in warm weather','SIL'],['Cold, damp, sweaty hands and feet','CALC'],['One hand or one foot is hot while the other is cold','LYC']]},
-{s:'Cold, heat and energy'},
-{q:'Do you prefer warmth or cool air?',o:[['I am always cold, need extra layers and feel worse in winter','CALC'],['I am hot-blooded, kick off the covers and feel worse in heat','SULPH'],['I feel chilly but want fresh air; warm stuffy rooms make me worse','PULS'],['I hate the cold and get irritable in it; heat also makes me worse','NUX-V']]},
-{q:'How does the weather affect you?',o:[['Cold, damp weather and the time before rain make me worse','CALC'],['I feel better by the sea and worse in the mountains or in the sun','NAT-M'],['Closed, warm rooms with stale air make me worse','PULS'],['Draughts and cold dry air make me worse','SIL']]},
-{q:'What time of day are you at your worst?',o:[['4–8 p.m. — I am tired, discouraged and everything looks bleak','LYC'],['On waking — groggy and irritable, slow to get going','NUX-V'],['Around 10–11 a.m. — I must eat or I feel faint','SULPH'],['Evening and night — low and fearful after sunset','PHOS']]},
-{q:'How is your energy?',o:[['Slow to start and sluggish, but I loosen up as I keep moving','CALC'],['I rush everything and get impatient','ARG-N'],['Worn out by mid-morning; hard exercise picks me up','SEP'],['Being with people drains me; I need time alone to recover','NAT-M']]},
-{q:'What gets on your nerves?',o:[['Noise, smells and bright light; I am easily irritated','NUX-V'],['I am very impressionable — music, films and other people\'s moods move me to tears','PHOS'],['Rudeness or unfairness hurts deeply and I brood over it','STAPH'],['Cold and being touched bother me; I would rather be left alone','SIL']]},
-{q:'How do you recover from illness?',o:[['Mild fevers that drag on; it takes me a long time to get back to normal','CALC'],['High fever with burning heat, then I bounce back quickly','PHOS'],['Colds and infections linger; wounds heal slowly; glands swell','SIL'],['I have never been fully well since one event — a loss, surgery, a shock','STAPH']]},
-{s:'Eating, drinking and digestion'},
-{q:'How thirsty are you?',o:[['Hardly ever — I do not think to drink','PULS'],['Very thirsty — I drink large amounts of cold water','PHOS'],['I take small sips of warm drinks','LYC'],['I sip small amounts often, especially when I feel cold','NUX-V']]},
-{q:'What food do you crave most?',o:[['Salt','NAT-M'],['Sweets and starchy food','LYC'],['Sweets, fat, butter and alcohol','SULPH'],['Sour things — vinegar, pickles, citrus','SEP']]},
-{q:'Your second strongest craving',o:[['Eggs, milk and sweets','CALC'],['Butter, pastry and creamy food','PULS'],['Sweets — I eat them compulsively when I am anxious','ARG-N'],['Cold food and cold drinks','PHOS']]},
-{q:'Food you dislike — or odd cravings',o:[['Warm food; I want everything cold','SIL'],['Fatty, rich food; it makes me ill','PULS'],['Meat and milk; I like strong, spicy food','NUX-V'],['I crave things that are not food (chalk, clay, raw starch)','CALC']]},
-{q:'Your hunger',o:[['Famished at 11 a.m.; if I do not eat I feel faint and shaky','SULPH'],['Hungry, but full after a few bites; bloated after eating','LYC'],['No appetite in the morning and I feel sick; eating makes me feel better','NUX-V'],['My appetite goes when I am grieving or stressed; I have to force myself to eat','NAT-M']]},
-{q:'Your digestion',o:[['My lower belly bloats; I must loosen my clothes after eating','LYC'],['Burning, sour burps and heartburn','SULPH'],['Morning nausea and retching; rich food and coffee make me worse','NUX-V'],['Indigestion with feeling cold; milk upsets me and causes loose stools','CALC']]},
-{q:'Your stools',o:[['Constipated; I strain but nothing comes and I never feel finished','NUX-V'],['Constipation with large hard stools, or it alternates with loose stools','LYC'],['The stool slips back and I must strain; large pale stools','SIL'],['Loose stools from excitement, before exams or events','ARG-N']]},
-{q:'Your eating habits',o:[['I must eat often or I get irritable and weak','LYC'],['I skip meals and then get a headache','NAT-M'],['I eat fast and swallow air, then feel worse','ARG-N'],['No fixed pattern — my appetite and tastes change daily','PULS']]},
-{s:'Sleep and dreams'},
-{q:'Getting to sleep',o:[['My mind races with plans and worries; I fall asleep late','ARG-N'],['I cannot sleep before midnight; I wake at 3–4 a.m. and brood','NUX-V'],['I get sleepy early but wake at 4–5 a.m. and have to get up','SULPH'],['Excitement or grief keeps me awake and I cry','PHOS']]},
-{q:'How you sleep',o:[['Light sleeper — the slightest noise or touch wakes me','SIL'],['Deep, heavy sleep; hard to wake and groggy','CALC'],['I wake at the same time every night and feel unrested','NUX-V'],['Restless; I dream about the day\'s events and worries','ARG-N']]},
-{q:'Your dreams',o:[['Of dead people, funerals and the past','NAT-M'],['Frightening, vivid dreams — fire, falling, danger','PHOS'],['Of robbers, of being chased, of water','SIL'],['Of arguments and fights; of falling from a height','LYC']]},
-{q:'How you feel when you wake',o:[['Exhausted and irritable; I need coffee to function','NUX-V'],['Unrefreshed, heavy and slow to get going','CALC'],['I wake early with a clear head but tire later in the day','SULPH'],['I wake low and sad for no reason','SEP']]},
-{q:'What happens at night?',o:[['I am afraid of the dark and need light or company to sleep','PHOS'],['I sleep badly away from home; I want my own bed','CALC'],['Itching or rashes keep me awake and I have to scratch','SULPH'],['I replay arguments and humiliations; I cannot let them go','STAPH']]},
-{s:'Skin, colds and periods'},
-{q:'Rashes and skin trouble',o:[['Dry, scaly, cracked skin that heals slowly; every injury festers','SIL'],['Itching that is worse in a warm bed; scratching burns','SULPH'],['Rashes behind the ears or in the groin that ooze sticky fluid','GRAPH'],['Dryness with dandruff and eczema in the bends of the joints','NAT-M']]},
-{q:'Colds and blocked noses',o:[['Colds go to my ears or adenoids; glands swell; they take ages to clear','SIL'],['Thick yellow-green mucus; I feel better in fresh air','PULS'],['My nose blocks at night and I must breathe through my mouth; worse on waking','LYC'],['Frequent colds with a sore throat and dry cracked lips','NAT-M']]},
-{q:'Your periods',opt:true,o:[['Early, heavy and long, with cold damp feet','CALC'],['Late and scanty, with a dragging-down feeling and no interest in anything','SEP'],['Irregular and changeable, with weepiness and a wish for sympathy','PULS'],['Painful, with anger held in; worse after sex','STAPH']]},
-{s:'Your feelings and personality'},
-{q:'Your main fear',o:[['Heights — and of losing control or going mad','ARG-N'],['Of the dark, of being alone, of ghosts','PHOS'],['Of poverty or bad luck, or something happening to my family','CALC'],['Of crowds, of being trapped, of making a mistake in public','LYC']]},
-{q:'Grief and loss',o:[['I keep it in and cry alone; comfort makes me feel worse','NAT-M'],['I look calm outside but swallow the hurt and anger','STAPH'],['I feel flat towards my family, want to be alone and cannot cry','SEP'],['I cry easily and want to be comforted and held','PULS']]},
-{q:'Anger',o:[['I explode, then regret it; worst in the morning','NUX-V'],['I never show it, then brood and tremble','STAPH'],['I argue, find fault and want my own way at home','LYC'],['Noise, being touched and cold make me snap','SIL']]},
-{q:'Being comforted',o:[['Sympathy and comfort help me','PULS'],['Comfort makes it worse — I cry harder','NAT-M'],['I do not care for sympathy; I want to be left alone','SEP'],['I dislike being touched or comforted; I want solitude','SIL']]},
-{q:'Order and tidiness',o:[['Very particular — mess disturbs me','NUX-V'],['Untidy and unbothered about how I look; mess does not trouble me','SULPH'],['Tidy but slow and fussy; details worry me','CALC'],['I feel flat about the house and about how I look','SEP']]},
-{q:'With other people',o:[['Reserved and private; I dislike small talk and hide my feelings','NAT-M'],['Sociable, warm and open; other people\'s pain becomes mine','PHOS'],['Shy and timid; criticism hurts; I avoid strangers','SIL'],['Lively on the outside, but my mood follows the company and I am easily swayed','PULS']]},
-{q:'Work and responsibility',o:[['I am over-careful and blame myself if anything is not perfect','CALC'],['I need to be in charge and dislike being contradicted','LYC'],['I put family duty first and push my own needs aside','NAT-M'],['I am a perfectionist about time and do everything in a hurry','ARG-N']]},
-{q:'When you are treated unfairly',o:[['Humiliation hurts deeply and I think about it for years','STAPH'],['Being contradicted makes me angry; I must win the argument','LYC'],['Waste, dirt and disorder make me angry','SULPH'],['I feel hurt at not being valued and brood in silence','NAT-M']]},
-{q:'When you are ill',o:[['I fear it is something serious and want reassurance','CALC'],['I want to be left alone and refuse sympathy','NAT-M'],['I get irritable and critical and want things done my way','NUX-V'],['I stay cheerful, play it down and ignore my own illness','SULPH']]},
-{s:'When it is worst, and what helps'},
-{q:'What time of day is your complaint worst?',o:[['4–8 p.m.','LYC'],['3–5 a.m. and on waking','NUX-V'],['Between 10 and 11 a.m.','SULPH'],['Evening and night, after sunset','PHOS']]},
-{q:'What makes you feel better?',o:[['Warmth, warm drinks and wrapping up','CALC'],['Fresh air, an open window and cold packs','PULS'],['Movement, stretching and hard exercise','SEP'],['Being warm in bed and sweating it out','NUX-V']]},
-{q:'What makes you feel worse?',o:[['Cold, damp and draughts','CALC'],['Heat, a warm bed and bathing','SULPH'],['Pressure and tight clothes around the waist','LYC'],['Touch, noise and being jolted','NUX-V']]},
-{q:'Where does it show, and how does it move?',o:[['Mainly on my right side','LYC'],['Mainly on my left side, or it moves from left to right','PHOS'],['It swaps sides, or comes and goes on both','PULS'],['Sudden, violent, short attacks brought on by excitement','ARG-N']]}
+{q:'Your body and skin',o:[['Soft and fleshy; I put on weight easily and my skin is pale, damp and cold','CALC'],['Thin on top with a large or bloated belly','LYC'],['Big-framed and warm; my skin is oily and itches, worse in a warm bed','SULPH'],['Thin, with dry rough skin that cracks at the fingertips and heels','SIL']]},
+{q:'Thirst, hunger and food that upsets you',o:[['No appetite in the morning and I feel sick; rich food and coffee upset me','NUX-V'],['Hardly ever thirsty; fatty, rich food makes me ill','PULS'],['Very thirsty for large amounts of cold water','PHOS'],['My appetite goes when I am upset; I skip meals and then get a headache','NAT-M']]},
+{q:'Hurt, anger and tears',o:[['I feel flat and cannot cry, even about things that should hurt','SEP'],['I cry easily and get sentimental over small things','GRAPH'],['I look calm, swallow the hurt and anger, and brood over it','STAPH'],['I get wound up and irritable when things are unfair or I am kept waiting','ARG-N']]},
+{q:'Energy through the day',o:[['Slow to start and sluggish, but I loosen up as I keep moving','CALC'],['Groggy and irritable on waking; I need coffee to get going','NUX-V'],['Worn out by mid-morning; hard exercise picks me up','SEP'],['Low and fearful in the evening and after sunset','PHOS']]},
+{q:'Making decisions and getting your own way',o:[['I decide quickly and want things done my way','LYC'],['I find it hard to decide and change my mind easily','PULS'],['I put off deciding and worry about getting it wrong','GRAPH'],['I know what I want but will not argue; I quietly do it my way','SIL']]},
+{q:'At night — sleep and what keeps you awake',o:[['I wake at 3–4 a.m. full of ideas and cannot get back to sleep','SULPH'],['I lie awake going over old grief and things I should have said','NAT-M'],['I replay arguments and humiliations until I am exhausted','STAPH'],['My mind races ahead to tomorrow\'s appointments and worries','ARG-N']]},
+{q:'When you are ill or upset, what do you want?',o:[['Reassurance that it is nothing serious','CALC'],['Sympathy and someone to comfort me','PULS'],['Nothing — I keep it to myself and will not be pitied','STAPH'],['To be left alone; I dislike being fussed over or touched','SIL']]},
+{q:'Work, duty and family',o:[['I need to be in charge, especially at home','LYC'],['I am driven and want everything done properly and on time','NUX-V'],['I feel detached from the house and the family, and want to be left out of it','SEP'],['I put duty to family first and push my own needs aside','NAT-M']]},
+{q:'Your skin, sweating and reaction to heat',o:[['My feet burn at night and I must stick them out of the covers; warmth makes my skin itch','SULPH'],['Fair, delicate skin that blushes easily; burning between the shoulders','PHOS'],['Rashes in the skin folds or behind the ears that ooze sticky fluid','GRAPH'],['Clammy hands; I sweat before appointments and events','ARG-N']]},
+{q:'Food you crave and how your stomach behaves',o:[['I crave eggs, milk and sweets; milk upsets me','CALC'],['I crave sweets and starchy food; my lower belly bloats after eating','LYC'],['I crave sour things — vinegar, pickles, citrus','SEP'],['I crave butter, pastry and creamy food; rich food makes me sick','PULS']]}
 ];
 var KQ_OFFERED={};
 KQ_QS.forEach(function(it){
