@@ -149,6 +149,32 @@ Storage is `localStorage`: it lives in that browser profile for that site's
 origin. It is not synced between devices, and clearing site data, private
 windows, or opening the page from a different URL or `file://` starts empty.
 
+## Know your Constitution
+
+The sidebar's **Know your Constitution** tab (below *Chat consultation*) is a
+self-scoring 41-question questionnaire: build and appearance, temperature and
+weather, food and thirst, sleep, skin and catarrh, mind, and modalities. The
+patient clicks one answer per question (question 28 is optional) and gets the
+**top three constitutional remedies** from twelve frequently prescribed ones
+(Calc-c, Lycopodium, Sulphur, Silicea, Nux-v, Pulsatilla, Phosphorus, Nat-m,
+Sepia, Graphites, Staphysagria, Argentum-n), each with its typical picture, its
+points and its share of the questions that offered it.
+
+- **One point per answer**, totalled per remedy and shown against how often that
+  remedy was offered, so a remedy that appears in fewer questions is not
+  penalised. Ties break on that percentage; the explanation of the scoring is
+  collapsed under the result and appears only after submission.
+- **Nothing leaves the browser** — no storage, no request; *Start over* clears
+  the answers and the result.
+- It is a **screening aid**: the result narrows the field for the practitioner,
+  and the reminder on the page says the remedy is confirmed from the whole case
+  and the materia medica, alongside regular medical care.
+- **Save / export as PDF** uses the browser's own print dialog, so no library or
+  network call is involved. A print stylesheet drops the app chrome, the
+  questions and the buttons, and prints the three ranked remedies, the verdict
+  and a numbered list of the answers given, headed with the date and the leading
+  remedy. The file never leaves the device.
+
 ## AI settings
 
 Online assist is **on by default**. The AI supervisor's operating stance is
