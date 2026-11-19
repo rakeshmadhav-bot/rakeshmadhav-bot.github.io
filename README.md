@@ -136,7 +136,8 @@ against already-given remedies still decides the final pick.
 ### Saved chats (continue / delete)
 
 Every chat is auto-saved **on the device it was written on** (`homeo_chat_history`,
-up to 200 chats): the full transcript plus the model message history and the last
+up to 200 chats) — and, once you sign in, to your account too (see *Online chat
+sync* below): the full transcript plus the model message history and the last
 **Final Top 5**. Reopening the page resumes the most recent conversation
 automatically — on the same browser profile, on Chrome for Android and on a
 Windows PC alike — and **New chat** starts a fresh one without deleting the old
@@ -154,9 +155,73 @@ readable transcript — named `homeoai-chat-<title>-YYYY-MM-DD.json` for one cha
 or `homeoai-chats-YYYY-MM-DD.json` for all, so a conversation can be moved to
 another device or kept outside the browser.
 
-Storage is `localStorage`: it lives in that browser profile for that site's
-origin. It is not synced between devices, and clearing site data, private
+Storage is `localStorage` first: it lives in that browser profile for that site's
+origin, so the rail is instant and works offline. Clearing site data, private
 windows, or opening the page from a different URL or `file://` starts empty.
+
+### Online chat sync (sign in, chats follow you)
+
+The rail's footer button **Sign in to sync** turns the saved chats into an online
+account: sign in with an emailed link, and every chat you write is mirrored to a
+`homeo_chats` table that only your account can read. On another device, sign in
+there and the same chats appear in the rail — with rename, pin, delete, search,
+import and export unchanged, because they all work on the local cache and the
+cache is refreshed from the account. Without a connection, or when signed out,
+the app keeps saving to the browser exactly as before.
+
+The **anon key is public** (it ships in the page); **row-level security** is what
+keeps rows private. Each row is stamped with `auth.uid()` on the server, and every
+policy checks `auth.uid() = user_id`, so one account can never list or delete
+another's chats — even with the key in hand. Report images are stripped of their
+pixels before upload to keep payloads small.
+
+**Setup (once):**
+
+1. Create a project at [supabase.com](https://supabase.com/dashboard) and open
+   **SQL Editor** → run:
+
+   ```sql
+   create table if not exists public.homeo_chats (
+     user_id    uuid not null references auth.users(id) on delete cascade,
+     id         text not null,
+     saved_at   bigint not null default 0,
+     title      text,
+     pinned     boolean not null default false,
+     step       text not null default 'chat',
+     msgs       jsonb not null default '[]'::jsonb,
+     ai_top5    jsonb not null default '[]'::jsonb,
+     log        text not null default '',
+     updated_at timestamptz not null default now(),
+     primary key (user_id, id)
+   );
+
+   alter table public.homeo_chats enable row level security;
+
+   drop policy if exists "own chats read"   on public.homeo_chats;
+   drop policy if exists "own chats insert" on public.homeo_chats;
+   drop policy if exists "own chats update" on public.homeo_chats;
+   drop policy if exists "own chats delete" on public.homeo_chats;
+
+   create policy "own chats read"   on public.homeo_chats for select using (auth.uid() = user_id);
+   create policy "own chats insert" on public.homeo_chats for insert with check (auth.uid() = user_id);
+   create policy "own chats update" on public.homeo_chats for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+   create policy "own chats delete" on public.homeo_chats for delete using (auth.uid() = user_id);
+
+   create index if not exists homeo_chats_recent_idx
+     on public.homeo_chats (user_id, saved_at desc);
+   ```
+
+2. **Authentication → URL Configuration**: set *Site URL* to the site
+   (`https://<user>.github.io/<repo>/`) and add it, plus
+   `http://localhost:3000/recommender.html`, to *Redirect URLs*. Passwordless
+   email sign-in is on by default.
+3. **Project Settings → API**: copy the *Project URL* and the *anon public* key
+   into `HOMEOSYNC_URL` and `HOMEOSYNC_KEY` in `recommender.html` (search for
+   `HOMEOSYNC_URL`), then reload. The button then offers the email form; the
+   first sign-in uploads the chats already on that device.
+
+Signing out removes the synced chats from that browser (they stay in the
+account) — useful on a shared computer.
 
 ## Know your Constitution
 

@@ -106,6 +106,20 @@
   body.kq-printing .kq-bar,body.kq-printing .card-head .step{display:none}
   body.kq-printing body{background:#fff;color:#000}
 }
+/* online chat sync — sign-in panel floats above the rail button so the chat
+   list never gets squeezed by an open panel */
+.sb-sync{position:relative}
+.sb-sync-panel{
+  position:absolute;left:0;right:0;bottom:calc(100% + 8px);z-index:30;
+  display:grid;gap:7px;padding:10px;max-height:58vh;overflow:auto;
+  background:var(--card2);border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 10px 28px rgba(0,0,0,.22);
+}
+.sb-sync-block{display:grid;gap:7px}
+.sb-sync-panel[hidden],.sb-sync-block[hidden]{display:none !important}
+.sb-sync-panel .chat-hist-empty{padding:0;font-size:12px}
+.sb-sync-panel .sb-link{text-align:left}
+.sb-sync-panel .sb-search{width:100%}
 @media print{.kq-progress,.kq-actions{display:none}}
 </style>
 </head>
@@ -158,6 +172,27 @@
     <div id="chatHistList" class="sb-list"></div>
   </div>
   <div class="sb-foot">
+    <div class="sb-sync">
+      <button type="button" class="sb-item" id="syncBtn" onclick="syncToggle()" aria-expanded="false" aria-controls="syncPanel">
+        <span id="syncLabel">Sign in to sync</span> <span class="sb-faint" id="syncState"></span>
+      </button>
+      <div id="syncPanel" class="sb-sync-panel" hidden>
+        <div id="syncSignedOut" class="sb-sync-block">
+          <input id="syncEmail" class="sb-search" type="email" placeholder="you@example.com" autocomplete="email" aria-label="Email for the sign-in link">
+          <button type="button" class="sb-link" onclick="syncSendLink()">Email me a sign-in link</button>
+          <div class="chat-hist-empty">No password: we email you a link, you tap it once, and this device is signed in. Your chats then follow you to every device you sign in on.</div>
+        </div>
+        <div id="syncSignedIn" class="sb-sync-block" hidden>
+          <div id="syncWho" class="chat-hist-empty"></div>
+          <button type="button" class="sb-link" onclick="syncPushAll(true)">Upload this device’s chats</button>
+          <button type="button" class="sb-link" onclick="syncSignOut()">Sign out</button>
+        </div>
+        <div id="syncSetup" class="sb-sync-block chat-hist-empty" hidden>
+          Online sync needs a Supabase project. Run the SQL in README → “Online chat sync”, then paste the project URL and anon key into <code>HOMEOSYNC_URL</code> and <code>HOMEOSYNC_KEY</code> in the chat-history script of this page (search for <code>HOMEOSYNC_URL</code>).
+        </div>
+        <div id="syncMsg" class="chat-hist-empty" role="status" aria-live="polite"></div>
+      </div>
+    </div>
     <button type="button" class="sb-item" id="settingsToggle" onclick="toggleSettings()">AI settings</button>
     <button type="button" class="sb-item" id="themeToggle" onclick="toggleTheme()">Theme <span class="sb-faint" id="themeLabel">Dark</span></button>
     <div class="sb-size" role="group" aria-label="Text size">
@@ -4177,6 +4212,208 @@ function chatHistoryWriteLean(arr){
   });
   return chatHistoryWrite(lean);
 }
+/* ---------------- online chat sync (Supabase) ----------------
+   The chats live in localStorage so the rail stays instant and the app keeps
+   working offline; when you are signed in every change is mirrored to your own
+   row on the server, and signing in on another device pulls the account's chats
+   into this cache. Rows are private through row-level security — see README →
+   "Online chat sync" for the table and policies. Setup: create a Supabase
+   project, run that SQL, then fill in the two constants below (the anon key is
+   public by design; RLS is what protects the data). */
+var HOMEOSYNC_URL='';   // e.g. https://abcdefghijkl.supabase.co
+var HOMEOSYNC_KEY='';   // the project's anon / publishable key
+var HOMEOSYNC_TABLE='homeo_chats';
+var HOMEOSYNC_LOG_MAX=400000;
+var homeoSync={client:null,user:null,pulling:false,starting:false};
+var _syncUpsertTimers={};
+function syncConfigured(){ return !!(HOMEOSYNC_URL && HOMEOSYNC_KEY); }
+function syncStatusLine(txt){ var el=document.getElementById('syncMsg'); if(el) el.textContent=txt||''; }
+function syncRenderUi(){
+  var on=!!(homeoSync.client && homeoSync.user);
+  var label=document.getElementById('syncLabel'), state=document.getElementById('syncState');
+  var out=document.getElementById('syncSignedOut'), inn=document.getElementById('syncSignedIn');
+  var setup=document.getElementById('syncSetup'), who=document.getElementById('syncWho');
+  var btn=document.getElementById('syncBtn');
+  if(label) label.textContent=on?'Chat sync':'Sign in to sync';
+  if(state) state.textContent=on?'On':(syncConfigured()?'Off':'Set up');
+  if(out) out.hidden=!syncConfigured()||on;
+  if(inn) inn.hidden=!on;
+  if(setup) setup.hidden=syncConfigured();
+  if(who && homeoSync.user) who.textContent='Signed in as '+(homeoSync.user.email||'your account');
+  if(btn) btn.setAttribute('aria-expanded', (document.getElementById('syncPanel')&&!document.getElementById('syncPanel').hidden)?'true':'false');
+}
+function syncToggle(){
+  var p=document.getElementById('syncPanel'); if(!p) return;
+  p.hidden=!p.hidden;
+  syncRenderUi();
+  if(!p.hidden && !(homeoSync.client&&homeoSync.user)){ var e=document.getElementById('syncEmail'); if(e&&!e.hidden&&syncConfigured()) e.focus(); }
+}
+async function syncInit(){
+  syncRenderUi();
+  if(!syncConfigured() || homeoSync.starting) return;
+  homeoSync.starting=true;
+  try{
+    var mod=await import('https://esm.sh/@supabase/supabase-js@2');
+    homeoSync.client=mod.createClient(HOMEOSYNC_URL, HOMEOSYNC_KEY, {
+      auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}
+    });
+    var st=await homeoSync.client.auth.getSession();
+    homeoSync.user=(st&&st.data&&st.data.session)?st.data.session.user:null;
+    homeoSync.client.auth.onAuthStateChange(function(ev, session){
+      var u=session?session.user:null;
+      var was=homeoSync.user?homeoSync.user.id:null;
+      homeoSync.user=u;
+      syncRenderUi();
+      // Never await auth calls inside this callback (supabase-js holds a lock).
+      if(u && u.id!==was) setTimeout(syncAfterSignIn, 0);
+    });
+    syncRenderUi();
+    if(homeoSync.user) syncAfterSignIn();
+  }catch(e){
+    console.warn('chat sync unavailable', e);
+    syncStatusLine('Online sync could not start — chats are still saved on this device.');
+  }finally{ homeoSync.starting=false; }
+}
+function syncAfterSignIn(){
+  if(!homeoSync.client || !homeoSync.user) return;
+  syncStatusLine('Signed in — loading your chats…');
+  syncPushAll(false).then(function(){ return syncPull(); }).catch(function(e){
+    console.warn('chat sync', e);
+    syncStatusLine('Signed in, but the server copy could not be read — showing this device\u2019s chats.');
+  });
+}
+async function syncSendLink(){
+  if(!syncConfigured()){ syncRenderUi(); return; }
+  var el=document.getElementById('syncEmail');
+  var email=el?String(el.value||'').trim():'';
+  if(!email || email.indexOf('@')<1){ syncStatusLine('Type your email address first.'); if(el) el.focus(); return; }
+  if(!homeoSync.client){ syncStatusLine('Sync is still starting — try again in a moment.'); return; }
+  syncStatusLine('Sending…');
+  try{
+    var res=await homeoSync.client.auth.signInWithOtp({
+      email:email,
+      options:{emailRedirectTo:location.origin+location.pathname}
+    });
+    if(res && res.error) syncStatusLine('Could not send the link: '+res.error.message);
+    else syncStatusLine('Check '+email+' for the sign-in link. Open it on this device.');
+  }catch(e){ syncStatusLine('Could not send the link: '+String(e&&e.message||e)); }
+}
+async function syncSignOut(){
+  if(!confirm('Sign out? The synced chats are removed from this browser; they stay in your account and come back when you sign in again. Export first if you want a file copy.')) return;
+  try{ if(homeoSync.client) await homeoSync.client.auth.signOut(); }catch(e){}
+  homeoSync.user=null;
+  try{ localStorage.removeItem(CHAT_HISTORY_KEY); }catch(e){}
+  try{ chatReset(false); }catch(e){}
+  chatHistoryRender(); chatHistoryRefreshBadge(); syncRenderUi();
+  syncStatusLine('Signed out — this browser no longer holds the synced chats.');
+}
+function syncStripReport(rep){
+  try{
+    var o={};
+    Object.keys(rep||{}).forEach(function(k){
+      if(k==='dataUrl' || k==='data' || k==='html') return;   // pixels and markup stay on the device
+      o[k]=rep[k];
+    });
+    return o;
+  }catch(e){ return null; }
+}
+function syncRow(rec){
+  var st=rec.state||{};
+  var msgs=(st.msgs||[]).map(function(m){
+    var o={role:m.role, content:String(m.content||'').slice(0,200000)};
+    if(m.report) o.report=syncStripReport(m.report);
+    return o;
+  });
+  return {
+    user_id: homeoSync.user.id,      // RLS checks this against auth.uid()
+    id: rec.id,
+    saved_at: rec.savedAt||Date.now(),
+    title: rec.title||null,
+    pinned: !!rec.pinned,
+    step: rec.step||'chat',
+    msgs: msgs,
+    ai_top5: (st.aiTop5||[]).slice(0,10),
+    log: String(rec.log||'').slice(0,HOMEOSYNC_LOG_MAX),
+    updated_at: new Date().toISOString()
+  };
+}
+function syncLocalRec(row){
+  var rec={
+    id:row.id, savedAt:Number(row.saved_at)||Date.now(), step:row.step||'chat',
+    state:{msgs:Array.isArray(row.msgs)?row.msgs:[], aiTop5:Array.isArray(row.ai_top5)?row.ai_top5:[]},
+    log:row.log||''
+  };
+  if(row.title) rec.title=row.title;
+  if(row.pinned) rec.pinned=true;
+  return rec;
+}
+/* Mirror one chat to the server (debounced per chat, so typing does not spam). */
+function syncUpsert(rec){
+  if(!homeoSync.client || !homeoSync.user || !rec || !rec.id) return;
+  var id=rec.id;
+  if(_syncUpsertTimers[id]) clearTimeout(_syncUpsertTimers[id]);
+  _syncUpsertTimers[id]=setTimeout(function(){
+    delete _syncUpsertTimers[id];
+    if(!homeoSync.client || !homeoSync.user) return;
+    var row;
+    try{ row=syncRow(rec); }catch(e){ return; }
+    homeoSync.client.from(HOMEOSYNC_TABLE).upsert(row, {onConflict:'user_id,id'}).then(function(res){
+      if(res && res.error){
+        console.warn('chat sync save', res.error);
+        syncStatusLine('Saved on this device — the online copy could not be updated.');
+      }
+    }).catch(function(e){ console.warn('chat sync save', e); });
+  }, 800);
+}
+function syncUpsertId(id){
+  chatHistoryAll().forEach(function(r){ if(r.id===id) syncUpsert(r); });
+}
+function syncDelete(id){
+  if(!homeoSync.client || !homeoSync.user || !id) return;
+  if(_syncUpsertTimers[id]){ clearTimeout(_syncUpsertTimers[id]); delete _syncUpsertTimers[id]; }
+  homeoSync.client.from(HOMEOSYNC_TABLE).delete().eq('id', id).eq('user_id', homeoSync.user.id)
+    .then(function(res){ if(res && res.error) console.warn('chat sync delete', res.error); })
+    .catch(function(e){ console.warn('chat sync delete', e); });
+}
+/* Upload what this device already has. Runs once per account per device, so a
+   second device never overwrites newer server copies with old local ones. */
+async function syncPushAll(force){
+  if(!homeoSync.client || !homeoSync.user) return 0;
+  var flag='homeo_sync_done_'+homeoSync.user.id;
+  if(!force){ try{ if(localStorage.getItem(flag)==='1') return 0; }catch(e){} }
+  var arr=chatHistoryAll();
+  if(!arr.length){ try{ localStorage.setItem(flag,'1'); }catch(e){} return 0; }
+  var rows=arr.map(syncRow);
+  var res=await homeoSync.client.from(HOMEOSYNC_TABLE).upsert(rows, {onConflict:'user_id,id'});
+  if(res && res.error) throw res.error;
+  try{ localStorage.setItem(flag,'1'); }catch(e){}
+  syncStatusLine('Uploaded '+rows.length+' chat'+(rows.length===1?'':'s')+' from this device.');
+  return rows.length;
+}
+async function syncPull(){
+  if(!homeoSync.client || !homeoSync.user || homeoSync.pulling) return;
+  homeoSync.pulling=true;
+  try{
+    var res=await homeoSync.client.from(HOMEOSYNC_TABLE)
+      .select('id,saved_at,title,pinned,step,msgs,ai_top5,log')
+      .order('saved_at', {ascending:false})
+      .limit(HISTORY_CAP);
+    if(res && res.error) throw res.error;
+    var rows=(res&&res.data)||[];
+    var arr=rows.map(syncLocalRec);
+    // A chat the user is writing in right now may not have reached the server yet.
+    var have={}; arr.forEach(function(r){ have[r.id]=1; });
+    if(CHAT.sessionId && !have[CHAT.sessionId]){
+      chatHistoryAll().forEach(function(r){ if(r.id===CHAT.sessionId) arr.unshift(r); });
+    }
+    chatHistoryWrite(arr);
+    chatHistoryRender(); chatHistoryRefreshBadge();
+    syncStatusLine(rows.length?('Synced — '+rows.length+' chat'+(rows.length===1?'':'s')+' on your account'):'Your account has no chats yet');
+  }catch(e){
+    console.warn('chat sync pull', e);
+    syncStatusLine('Could not read your chats online — showing this device\u2019s copy.');
+  }finally{ homeoSync.pulling=false; }
+}
 var _chatPersistTimer=null;
 function chatPersistNow(){
   if(!CHAT.sessionId) CHAT.sessionId='c'+Date.now()+(Math.random()*1e6|0);
@@ -4206,6 +4443,7 @@ function chatPersistNow(){
   if(arr.length>HISTORY_CAP) arr.length=HISTORY_CAP;
   var kept=chatHistoryWrite(arr);
   if(!kept) chatHistoryWriteLean(arr);
+  try{ syncUpsert(rec); }catch(e){}
   chatHistoryRefreshBadge();
   chatHistoryRender();   // the rail was counting the new chat but not listing it
 }
@@ -4373,7 +4611,7 @@ function chatHistoryImportFile(input){
       var data=JSON.parse(String(reader.result||''));
       var incoming=Array.isArray(data)?data:(data&&Array.isArray(data.chats)?data.chats:[]);
       if(!incoming.length) throw new Error('no chats found in this file');
-      var arr=chatHistoryAll(), added=0, replaced=0;
+      var arr=chatHistoryAll(), added=0, replaced=0, touched=[];
       incoming.forEach(function(r){
         if(!r) return;
         var msgs=[];
@@ -4386,6 +4624,7 @@ function chatHistoryImportFile(input){
           state:{msgs:msgs, aiTop5:(r.state&&r.state.aiTop5)||[]},
           log:String(r.log||'')};
         if(r.title) rec.title=String(r.title).slice(0,80);
+        touched.push(id);
         var at=-1;
         for(var i=0;i<arr.length;i++){ if(arr[i].id===id){ at=i; break; } }
         if(at>=0){ arr[at]=rec; replaced++; } else { arr.unshift(rec); added++; }
@@ -4396,6 +4635,7 @@ function chatHistoryImportFile(input){
       });
       if(arr.length>HISTORY_CAP) arr.length=HISTORY_CAP;
       chatHistoryWrite(arr);
+      touched.forEach(function(id){ syncUpsertId(id); });
       chatHistoryRender();
       chatHistoryRefreshBadge();
       chatStatus('Imported '+added+(replaced?' · updated '+replaced:''));
@@ -4426,6 +4666,7 @@ function chatHistoryPin(id){
   });
   if(!hit) return;
   chatHistoryWrite(arr);
+  try{ syncUpsertId(id); }catch(e){}
   chatHistoryRender();
 }
 function closeAllHistMenus(except){
@@ -4443,6 +4684,7 @@ function chatHistoryRename(id, name, fallback){
   });
   if(!hit) return;
   chatHistoryWrite(arr);
+  try{ syncUpsertId(id); }catch(e){}
   chatHistoryRefreshBadge();
 }
 function chatHistoryContinue(id, silent){
@@ -4477,6 +4719,7 @@ function chatHistoryContinue(id, silent){
 }
 function chatHistoryDelete(id){
   chatHistoryWrite(chatHistoryAll().filter(function(r){ return r.id!==id; }));
+  try{ syncDelete(id); }catch(e){}
   if(CHAT.sessionId===id) CHAT.sessionId=null; // don't resurrect a deleted chat on the next message
   chatHistoryRender(); chatHistoryRefreshBadge();
 }
@@ -4925,6 +5168,8 @@ var chatStatusRestoreTimer=null;
   if(!resumed) chatReset(true);
   chatHistoryRefreshBadge();
   chatHistoryRender();
+  // Signed in? Then wear the account's chats instead of only this device's.
+  try{ syncInit(); }catch(e){}
   if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
     window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
   }
