@@ -359,7 +359,7 @@
 <section id="constitutionView" style="display:none">
 <div class="kq-wrap" role="main" aria-label="Know your Constitution">
   <div class="card">
-    <div class="card-head" id="kqHead"><span><span class="step">◎</span> &nbsp;Know your Constitution</span><span style="font-size:11px;color:var(--muted)">Self-scoring · 10 questions</span></div>
+    <div class="card-head" id="kqHead"><span><span class="step">◎</span> &nbsp;Know your Constitution</span><span style="font-size:11px;color:var(--muted)">Self-scoring · 12 questions</span></div>
     <div class="card-body">
       <p class="kq-lead">Answer for yourself, thinking about how you have been for most of your life — not just while you are ill. In each question pick the one answer that fits best; if two fit, pick the stronger one. There are no right or wrong answers. If none of the choices fits, choose <b>None of these — write your answer</b> and say it in your own words. Everything is scored in this browser, and the three remedies that fit you best are shown at the end.</p>
       <form id="kqForm" onsubmit="kqSubmit(event)"></form>
@@ -383,13 +383,13 @@
        so keeping it after the result keeps Submit, Start over and Save / export
        on screen at every scroll position. -->
   <div class="kq-progress">
-    <div class="row"><span id="kqCount">0 of 10 answered</span><span id="kqPct">0%</span></div>
+    <div class="row"><span id="kqCount">0 of 12 answered</span><span id="kqPct">0%</span></div>
     <div class="kq-bar"><i id="kqBar"></i></div>
     <div class="kq-actions">
       <button class="btn" type="submit" id="kqSubmitBtn" form="kqForm" disabled>See my constitutional remedies →</button>
       <button class="btn-ghost" type="button" onclick="kqReset()">Start over</button>
       <button class="btn-ghost" type="button" id="kqExportBtn" onclick="kqExportPdf()" title="Opens your browser's print dialog — choose Save as PDF">Save / export as PDF</button>
-      <span style="font-size:11.5px;color:var(--muted)">Ten questions, about two minutes.</span>
+      <span style="font-size:11.5px;color:var(--muted)">Twelve questions, about two minutes.</span>
     </div>
     <p id="kqNotice" class="kq-note" role="status" style="margin:8px 0 0"></p>
   </div>
@@ -4544,7 +4544,9 @@ var KQ_QS=[
 {q:'When you are ill or upset, what do you want?',o:[['Reassurance that it is nothing serious','CALC'],['Sympathy and someone to comfort me','PULS'],['Nothing — I keep it to myself and will not be pitied','STAPH'],['To be left alone; I dislike being fussed over or touched','SIL']]},
 {q:'Work, duty and family',o:[['I need to be in charge, especially at home','LYC'],['I am driven and want everything done properly and on time','NUX-V'],['I feel detached from the house and the family, and want to be left out of it','SEP'],['I put duty to family first and push my own needs aside','NAT-M']]},
 {q:'Your skin, sweating and reaction to heat',o:[['My feet burn at night and I must stick them out of the covers; warmth makes my skin itch','SULPH'],['Fair, delicate skin that blushes easily; burning between the shoulders','PHOS'],['Rashes in the skin folds or behind the ears that ooze sticky fluid','GRAPH'],['Clammy hands; I sweat before appointments and events','ARG-N']]},
-{q:'Food you crave and how your stomach behaves',o:[['I crave eggs, milk and sweets; milk upsets me','CALC'],['I crave sweets and starchy food; my lower belly bloats after eating','LYC'],['I crave sour things — vinegar, pickles, citrus','SEP'],['I crave butter, pastry and creamy food; rich food makes me sick','PULS']]}
+{q:'Food you crave and how your stomach behaves',o:[['I crave eggs, milk and sweets; milk upsets me','CALC'],['I crave sweets and starchy food; my lower belly bloats after eating','LYC'],['I crave sour things — vinegar, pickles, citrus','SEP'],['I crave butter, pastry and creamy food; rich food makes me sick','PULS']]},
+{q:'Cold, heat and the weather',o:[['I hate heat and a warm bed; cool fresh air makes me feel better','SULPH'],['Draughts and cold dry air go straight to my head, throat or ears','SIL'],['Cold makes me tense and irritable; I keep myself well wrapped up','NUX-V'],['Sun and heat give me a headache; I feel best by the sea','NAT-M']]},
+{q:'How you are with other people',o:[['Warm and open; strangers end up telling me their troubles','PHOS'],['Shy and soft-hearted; I stay close to people I already know','GRAPH'],['Polite and controlled; I keep my feelings to myself','STAPH'],['Quick and lively, but I avoid crowds, queues and heights','ARG-N']]}
 ];
 var KQ_OFFERED={};
 KQ_QS.forEach(function(it){

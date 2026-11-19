@@ -161,12 +161,13 @@ windows, or opening the page from a different URL or `file://` starts empty.
 ## Know your Constitution
 
 The sidebar's **Know your Constitution** tab (below *Chat consultation*) is a
-self-scoring 10-question questionnaire, written in everyday language: body and
+self-scoring 12-question questionnaire, written in everyday language: body and
 skin, thirst and food, hurt and anger, energy, decisions, sleep, what a patient
-wants when ill, work and family, heat and sweating, and cravings. Each of the
-twelve remedies is offered in three or four of the ten questions, so every
-remedy can still be reached and no remedy is favoured by the shorter form. The
-patient clicks one answer per question and gets the
+wants when ill, work and family, heat and sweating, cravings, weather, and
+company. Each of the twelve remedies is offered in exactly four of the twelve
+questions, so every remedy is measured on the same number of questions and none
+is favoured by the shorter form. The patient clicks one answer per question and
+gets the
 **top three constitutional remedies** from twelve frequently prescribed ones
 (Calc-c, Lycopodium, Sulphur, Silicea, Nux-v, Pulsatilla, Phosphorus, Nat-m,
 Sepia, Graphites, Staphysagria, Argentum-n), each with its typical picture, its
