@@ -14,6 +14,15 @@ Static site (no build step, no server code) hosted on GitHub Pages.
 | `/data/db_rag.js`, `/data/db_mm.js`, `/data/db_candidates.js` | Generated from the SQLite DB by `scripts/build_recommender_db.py` (run automatically after each DB build): 238,160 ext-repertory rubrics for RAG retrieval, materia medica text for all 910 abbreviated remedies that have any, and the 49 SQLite-only remedy records that make **all 1,183 abbreviated remedies rankable** in the recommender (767 already in `embed.js`, 367 covered by `abc_index.js`, 49 added) |
 | `/data/boericke_full.js` | Full Boericke Materia Medica, 689 remedies — merged from `HomeoDBs/boericke-alt` + `boericke-688`, scored into every rubric and shown as an expandable panel on each result |
 
+The ~31 MB repertory payload (`abc_index`, `oorep_index`, `oorep_rag`,
+`boericke_full`, `db_rag`, `db_mm`) is **not downloaded on load**: the chat shell
+and the constitution questionnaire paint immediately, and switching tabs never
+starts the fetch. The corpora load on the first action that actually needs them —
+**AI Find Top 5** or the first chat message — with the button showing
+`Loading repertory data…` while it happens. Both paths wait for the load before
+ranking, and a failed fetch is reported and retried on the next click instead of
+being remembered as done.
+
 ### Database coverage
 
 `database/homeopathy.sqlite` is rebuilt by `scripts/build_homeopathy_db.py` from local

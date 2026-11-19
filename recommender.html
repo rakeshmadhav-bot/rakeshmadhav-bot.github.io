@@ -308,7 +308,7 @@
         </div>
         <label for="remarks">Remarks</label>
         <input id="remarks" placeholder="e.g. Follow-up in 7 days, better after dose">
-        <button class="btn" onclick="recommend()">AI Find Top 5 (ABC repertorisation) →</button>
+        <button class="btn" id="recBtn" onclick="recommend()">AI Find Top 5 (ABC repertorisation) →</button>
         <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
           <label class="switch" style="margin:0"><input type="checkbox" id="onlineToggle" onchange="setOnline(this.checked)"><span class="slider"></span></label>
           <span style="font-size:12px;color:var(--muted)">Online assist — verify with <b>Qwen</b> (Verified vs Weight-only, needs internet)</span>
@@ -402,27 +402,29 @@ function loadScript(src){
 }
 function ensureHeavyData(){
   if(_heavyPromise) return _heavyPromise;
+  var failed=false;
   _heavyPromise=HEAVY_SCRIPTS.reduce(function(chain,src){
     return chain.then(function(){
       if(window.__homeoLoaded && window.__homeoLoaded[src]) return;
       window.__homeoLoaded=window.__homeoLoaded||{};
       return loadScript(src).then(function(){ window.__homeoLoaded[src]=1; })
-        .catch(function(e){ console.warn('repertory data', e); });
+        .catch(function(e){ failed=true; console.warn('repertory data', e); });
     });
   }, Promise.resolve()).then(function(){
-    try{ loadDB(); }catch(e){ console.warn('loadDB after lazy data', e); }
-    _heavyDone=true;
-    return true;
+    try{ loadDB(); }catch(e){ failed=true; console.warn('loadDB after lazy data', e); }
+    _heavyDone=!failed;
+    // A failed load must not poison every later attempt: clear the memo so the
+    // next click on "AI Find Top 5" retries instead of silently returning empty.
+    if(failed) _heavyPromise=null;
+    return _heavyDone;
   });
   return _heavyPromise;
 }
-['pointerdown','keydown','touchstart'].forEach(function(ev){
-  window.addEventListener(ev, function(){ ensureHeavyData(); }, { once:true, passive:true });
-});
-setTimeout(function(){
-  var c=navigator.connection||{};
-  if(!c.saveData && !/2g/.test(c.effectiveType||'')) ensureHeavyData();
-}, 3000);
+/* The corpora are ~31 MB and block the main thread while they parse, so nothing
+   loads them on a timer or on a stray tap any more: the first paint, the chat
+   shell and the questionnaire are usable immediately. They are fetched when a
+   feature actually needs them — "AI Find Top 5" (recommend) or the first chat
+   message (chatKojoAnswer) — and both wait for the promise before reading. */
 </script>
 <script>
 let DB=[];
@@ -1708,11 +1710,25 @@ function dbRepertorise(clauses){
           symptoms:rows.filter(function(r){ return r.rubrics.length; }).length,
           clauses:parts.length, corpus:N};
 }
+var _recommendWaiting=false;
 function recommend(){
-  if(!window.DB_RAG && !window.DB_MM && !window.__heavyTried){
-    window.__heavyTried=1;
+  if(!_heavyDone){
+    if(_recommendWaiting) return;   // a second click while loading must not re-rank empty data
+    _recommendWaiting=true;
     chatStatus('Loading repertory data…', true);
-    ensureHeavyData().then(function(){ try{ recommend(); }catch(e){ console.warn(e); } });
+    var rb=document.getElementById('recBtn');
+    var label=rb?rb.innerHTML:'';
+    if(rb){ rb.disabled=true; rb.textContent='Loading repertory data…'; }
+    ensureHeavyData().then(function(ok){
+      _recommendWaiting=false;
+      if(rb){ rb.disabled=false; rb.innerHTML=label; }
+      if(!ok){ chatStatus('Repertory data could not be loaded — check the connection and try again', true); return; }
+      try{ recommend(); }catch(e){ console.warn(e); }
+    }, function(){
+      _recommendWaiting=false;
+      if(rb){ rb.disabled=false; rb.innerHTML=label; }
+      chatStatus('Repertory data could not be loaded — check the connection and try again', true);
+    });
     return;
   }
   const pname=document.getElementById('pname').value.trim() || '—';
@@ -4478,8 +4494,9 @@ function setView(v){
   try{ localStorage.setItem('homeo_view', v); }catch(e){}
   try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(e){}
   if(v==='chat'){ var inp=document.getElementById('chatInput'); if(inp) setTimeout(function(){ inp.focus(); },60); }
-  else if(v==='form'){ try{ ensureHeavyData(); }catch(e){} }
-  else { try{ kqRender(); }catch(e){} }
+  else if(v==='constitution'){ try{ kqRender(); }catch(e){} }
+  // The case sheet renders from localStorage; the 31 MB corpus waits for the
+  // "AI Find Top 5" click so switching tabs never freezes the page.
 }
 
 /* ---------------- Know your Constitution (self-scoring) ---------------- */
