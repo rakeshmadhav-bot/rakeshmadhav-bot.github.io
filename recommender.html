@@ -26,7 +26,13 @@
 <meta name="twitter:image" content="https://rakeshmadhav-bot.github.io/assets/og-card.png">
 <style>
 /* Know your Constitution — scoped to the questionnaire view */
-.kq-wrap{max-width:900px}
+/* The view is a flex child of .main (height:100dvh, overflow:hidden), so it has
+   to own its scrolling the way #formView does, or the questions below the fold
+   are clipped with no way to reach them. */
+#constitutionView{flex:1 1 auto;min-height:0;overflow-y:auto;padding-bottom:26px}
+/* One centred column: .container's 400px/1fr grid would park the card in the
+   narrow first track. */
+.kq-wrap{max-width:900px;margin:26px auto 8px;padding:0 24px}
 .kq-lead{font-size:13.5px;color:var(--muted);max-width:66ch;margin:6px 0 16px}
 .kq-sec{font-family:var(--serif);font-size:16.5px;font-weight:600;margin:26px 0 6px;padding-bottom:5px;border-bottom:1px solid var(--rule)}
 .kq-sec:first-of-type{margin-top:6px}
@@ -74,7 +80,7 @@
   body.kq-printing .sidebar,body.kq-printing .mobile-bar,body.kq-printing #settingsPanel,
   body.kq-printing #chatView,body.kq-printing #formView,body.kq-printing .skip-link{display:none !important}
   body.kq-printing .app,body.kq-printing .main{display:block !important}
-  body.kq-printing #constitutionView,body.kq-printing #kqResult{display:block !important}
+  body.kq-printing #constitutionView,body.kq-printing #kqResult{display:block !important;overflow:visible !important;height:auto !important;padding-bottom:0}
   body.kq-printing .kq-wrap{max-width:none;padding:0}
   body.kq-printing .card{border:0;background:#fff}
   body.kq-printing .card-head{padding-left:0;padding-right:0}
@@ -339,7 +345,7 @@
 </div><!-- /formView -->
 
 <section id="constitutionView" style="display:none">
-<div class="container kq-wrap" role="main" aria-label="Know your Constitution">
+<div class="kq-wrap" role="main" aria-label="Know your Constitution">
   <div class="card">
     <div class="card-head" id="kqHead"><span><span class="step">◎</span> &nbsp;Know your Constitution</span><span style="font-size:11px;color:var(--muted)">Self-scoring · 41 questions</span></div>
     <div class="card-body">
