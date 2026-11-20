@@ -261,6 +261,7 @@
             <div>Pasting both values (or a whole code snippet) into either box is fine — the page picks out the URL and the key itself.</div>
           </details>
         </div>
+        <a id="syncSqlLink" class="sb-link" hidden target="_blank" rel="noopener" href="https://supabase.com/dashboard/project/dlfhzzaedwtzgpvykeiy/sql/new?content=create%20table%20if%20not%20exists%20public.homeo_chats%20%28%0A%20%20user_id%20uuid%20not%20null%20references%20auth.users%28id%29%20on%20delete%20cascade%2C%0A%20%20id%20text%20not%20null%2C%0A%20%20saved_at%20bigint%20not%20null%20default%200%2C%0A%20%20title%20text%2C%0A%20%20pinned%20boolean%20not%20null%20default%20false%2C%0A%20%20step%20text%20not%20null%20default%20%27chat%27%2C%0A%20%20msgs%20jsonb%20not%20null%20default%20%27%5B%5D%27%3A%3Ajsonb%2C%0A%20%20ai_top5%20jsonb%20not%20null%20default%20%27%5B%5D%27%3A%3Ajsonb%2C%0A%20%20log%20text%20not%20null%20default%20%27%27%2C%0A%20%20updated_at%20timestamptz%20not%20null%20default%20now%28%29%2C%0A%20%20primary%20key%20%28user_id%2C%20id%29%0A%29%3B%0Aalter%20table%20public.homeo_chats%20enable%20row%20level%20security%3B%0Acreate%20policy%20%22own%20chats%20read%22%20on%20public.homeo_chats%20for%20select%20using%20%28auth.uid%28%29%20%3D%20user_id%29%3B%0Acreate%20policy%20%22own%20chats%20insert%22%20on%20public.homeo_chats%20for%20insert%20with%20check%20%28auth.uid%28%29%20%3D%20user_id%29%3B%0Acreate%20policy%20%22own%20chats%20update%22%20on%20public.homeo_chats%20for%20update%20using%20%28auth.uid%28%29%20%3D%20user_id%29%20with%20check%20%28auth.uid%28%29%20%3D%20user_id%29%3B%0Acreate%20policy%20%22own%20chats%20delete%22%20on%20public.homeo_chats%20for%20delete%20using%20%28auth.uid%28%29%20%3D%20user_id%29%3B%0Acreate%20index%20if%20not%20exists%20homeo_chats_recent_idx%20on%20public.homeo_chats%20%28user_id%2C%20saved_at%20desc%29%3B">Open the SQL editor with the table script</a>
         <div id="syncMsg" class="chat-hist-empty" role="status" aria-live="polite"></div>
       </div>
     </div>
@@ -4336,9 +4337,13 @@ function syncToggle(){
 function syncRecoveryInUrl(){ return /(^|[#&?])type=recovery/.test(String(location.hash||location.search||'')); }
 function syncOpenPanel(){ var p=document.getElementById('syncPanel'); if(p){ p.hidden=false; syncRenderUi(); } }
 /* The table or the key can be wrong even when the sign-in itself works; say which. */
+function syncSqlLink(show){ var a=document.getElementById('syncSqlLink'); if(a) a.hidden=!show; }
 function syncDbHint(err){
   var m=String(err&&err.message||err||''), c=String(err&&err.code||'');
-  if(c==='42P01' || c==='PGRST205' || /relation .*does not exist|could not find the table/i.test(m)) return 'Your project has no homeo_chats table yet — run the SQL in README → Online chat sync.';
+  if(c==='42P01' || c==='PGRST205' || /relation .*does not exist|could not find the table/i.test(m)){
+    syncSqlLink(true);
+    return 'Your project has no homeo_chats table yet — the “Open the SQL editor” link below creates it.';
+  }
   if(/invalid api key|no api key|invalid jwt|jwt malformed/i.test(m)) return 'That project URL and anon key do not belong together — paste both again under “Use a different project”.';
   return '';
 }
@@ -4670,6 +4675,7 @@ async function syncPull(){
     }
     chatHistoryWrite(arr);
     chatHistoryRender(); chatHistoryRefreshBadge();
+    syncSqlLink(false);
     syncStatusLine(rows.length?('Synced — '+rows.length+' chat'+(rows.length===1?'':'s')+' on your account'):'Your account has no chats yet');
   }catch(e){
     console.warn('chat sync pull', e);
