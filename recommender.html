@@ -123,6 +123,15 @@
 .sb-sync-help summary{cursor:pointer;color:var(--ink);font-weight:600}
 .sb-sync-help ol{margin:6px 0 6px;padding-left:18px;display:grid;gap:5px}
 .sb-sync-help li{line-height:1.35}
+/* small confirmation tab after an email link / sign-in */
+.sync-toast{
+  position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top));transform:translateX(-50%);
+  z-index:90;width:max-content;max-width:min(92vw,380px);padding:10px 14px;border-radius:10px;
+  background:var(--card);color:var(--ink);border:1px solid var(--border);border-left:4px solid var(--accent);
+  box-shadow:0 12px 30px rgba(0,0,0,.28);font-size:13px;line-height:1.4;cursor:pointer;
+}
+.sync-toast[hidden]{display:none !important}
+@media print{.sync-toast{display:none !important}}
 .sb-sync-panel .sb-link{text-align:left}
 .sb-sync-panel .sb-search{width:100%}
 .sb-sync-google{
@@ -4311,6 +4320,25 @@ function syncConfig(){
 }
 function syncConfigured(){ var c=syncConfig(); return !!(c.url && c.key); }
 function syncStatusLine(txt){ var el=document.getElementById('syncMsg'); if(el) el.textContent=txt||''; }
+/* A short tab over the chat, for things worth noticing with the panel closed. */
+var _syncToastTimer=null;
+function syncToast(msg, ms){
+  var el=document.getElementById('syncToast');
+  if(!el) return;
+  el.textContent=msg;
+  el.hidden=false;
+  if(_syncToastTimer) clearTimeout(_syncToastTimer);
+  _syncToastTimer=setTimeout(syncToastHide, ms||6000);
+}
+function syncToastHide(){
+  var el=document.getElementById('syncToast'); if(el) el.hidden=true;
+  if(_syncToastTimer){ clearTimeout(_syncToastTimer); _syncToastTimer=null; }
+}
+/* Which kind of link brought the browser back: signup confirmation, magic link… */
+function syncAuthReturnType(){
+  var m=(String(location.hash||'')+'&'+String(location.search||'')).match(/[#&?]type=([a-z_]+)/i);
+  return m?m[1].toLowerCase():'';
+}
 function syncRenderUi(){
   var on=!!(homeoSync.client && homeoSync.user);
   var label=document.getElementById('syncLabel'), state=document.getElementById('syncState');
@@ -4357,9 +4385,10 @@ async function syncInit(){
     homeoSync.client=mod.createClient(cfg.url, cfg.key, {
       auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}
     });
+    var recovered=syncRecoveryInUrl(), arrived=syncAuthReturnType();
     var st=await homeoSync.client.auth.getSession();
     homeoSync.user=(st&&st.data&&st.data.session)?st.data.session.user:null;
-    if(syncRecoveryInUrl()){ homeoSync.recovery=true; syncOpenPanel(); }
+    if(recovered){ homeoSync.recovery=true; syncOpenPanel(); }
     homeoSync.client.auth.onAuthStateChange(function(ev, session){
       var u=session?session.user:null;
       var was=homeoSync.user?homeoSync.user.id:null;
@@ -4378,6 +4407,13 @@ async function syncInit(){
     syncRenderUi();
     if(homeoSync.recovery) syncStatusLine('Choose a new password for your account.');
     else if(homeoSync.user) syncAfterSignIn();
+    if(homeoSync.user && !homeoSync.recovery && (arrived==='signup' || arrived==='magiclink')){
+      syncToast(arrived==='signup'
+        ? 'Account created — you are signed in. Your chats now follow you to every device.'
+        : 'Signed in — your chats now follow you to every device.');
+      // Drop the one-time tokens from the address bar so a reload stays quiet.
+      try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+    }
   }catch(e){
     console.warn('chat sync unavailable', e);
     syncStatusLine('Online sync could not start — chats are still saved on this device.');
@@ -5452,5 +5488,6 @@ var chatStatusRestoreTimer=null;
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') chatFlush(); });
 })();
 </script>
+<div id="syncToast" class="sync-toast" role="status" aria-live="polite" hidden onclick="syncToastHide()" title="Tap to dismiss"></div>
 </body>
 </html>
