@@ -4338,7 +4338,7 @@ function syncOpenPanel(){ var p=document.getElementById('syncPanel'); if(p){ p.h
 /* The table or the key can be wrong even when the sign-in itself works; say which. */
 function syncDbHint(err){
   var m=String(err&&err.message||err||''), c=String(err&&err.code||'');
-  if(c==='42P01' || /relation .*does not exist/i.test(m)) return 'Your project has no homeo_chats table yet — run the SQL in README → Online chat sync.';
+  if(c==='42P01' || c==='PGRST205' || /relation .*does not exist|could not find the table/i.test(m)) return 'Your project has no homeo_chats table yet — run the SQL in README → Online chat sync.';
   if(/invalid api key|no api key|invalid jwt|jwt malformed/i.test(m)) return 'That project URL and anon key do not belong together — paste both again under “Use a different project”.';
   return '';
 }
