@@ -1195,6 +1195,29 @@ async function runAIVerification(){
   // Verification runs on Kojo, like the chat: api.kojo.sh sends no CORS headers,
   // so the request always goes through the relay holding KOJO_API_KEY.
   const model=(settings.kojoModel||'kojo').trim()||'kojo';
+  /* Cloudflare 530 (error 1033) and a 502/503/504 mean the provider's edge has
+     lost its origin for a moment; a short wait usually clears it, so retry
+     twice before telling the patient anything failed. */
+  const retryableStatus=st=>st===530||st===502||st===503||st===504;
+  async function fetchWithRetry(url, opts){
+    let res=null;
+    for(let attempt=0; attempt<3; attempt++){
+      try{
+        res=await fetch(url, opts);
+      }catch(err){
+        if(err && err.name==='AbortError') throw err;
+        if(attempt===2) throw err;
+        await new Promise(r=>setTimeout(r,900*(attempt+1)));
+        continue;
+      }
+      if(attempt<2 && retryableStatus(res.status)){
+        await new Promise(r=>setTimeout(r,900*(attempt+1)));
+        continue;
+      }
+      return res;
+    }
+    return res;
+  }
   const endpoint=AI_RELAY_URL, authHeader=null, via='Kojo';
   resultDiv.style.background='var(--accent-soft)';
   resultDiv.style.color='var(--accent)';
@@ -1217,7 +1240,7 @@ async function runAIVerification(){
       headers['HTTP-Referer']=window.location.origin;
       headers['X-Title']='HomeoAI Clinical Recommender';
     }
-    const response=await fetch(endpoint, {
+    const response=await fetchWithRetry(endpoint, {
       method:'POST',
       signal:_orvAbort.signal,
       headers:headers,
@@ -1233,6 +1256,11 @@ async function runAIVerification(){
       })
     });
     if(!response.ok){
+      if(retryableStatus(response.status)){
+        throw new Error(response.status===530
+          ? 'Kojo\u2019s own API is offline (Cloudflare 530 / error 1033) — the relay itself is healthy, so this is an outage at api.kojo.sh, not on this page. Tried three times; give it a few minutes, or pick another provider in AI settings.'
+          : 'Kojo\u2019s API did not answer (HTTP '+response.status+'). Tried three times — the outage is upstream, not on this page. Retry in a few minutes.');
+      }
       const err=await response.json().catch(()=>({error:{message:response.statusText}}));
       throw new Error(err.error?.message || `HTTP ${response.status}`);
     }
@@ -1287,7 +1315,8 @@ async function runAIVerification(){
     const msg = timedOut
       ? 'Timed out after 5 minutes. Press Cancel and retry.'
       : (e.name==='AbortError' ? 'Cancelled by user.' : e.message);
-    resultDiv.innerHTML=`<b>${timedOut?'Timeout:':'Error:'}</b> ${esc(msg)}<br><small>${timedOut||e.name==='AbortError'?'':esc(aiOriginHint(e)||'The Kojo relay is busy or unreachable — wait a moment and retry.')}</small>`;
+    const knownOutage=/Kojo\u2019s own API|Kojo\u2019s API did not answer/.test(msg);
+    resultDiv.innerHTML=`<b>${timedOut?'Timeout:':'Error:'}</b> ${esc(msg)}<br><small>${timedOut||e.name==='AbortError'||knownOutage?'':esc(aiOriginHint(e)||'The Kojo relay is busy or unreachable — wait a moment and retry.')}</small>`;
   }finally{
     clearInterval(ticker); clearTimeout(timeout); _orvAbort=null;
     if(btn){ btn.disabled=false; btn.textContent='Run AI Verification'; }
@@ -2426,11 +2455,20 @@ try{ const _sf=document.getElementById('stockFile'); if(_sf) _sf.addEventListene
       const endpoint=AI_RELAY_URL;
       try{
         const headers={'Content-Type':'application/json'};
-        const r=await fetch(endpoint,{
-          method:'POST',
-          headers,
-          body:JSON.stringify({model:kojoModel,messages:[{role:'user',content:'Reply with exactly: KOJO_OK'}],max_tokens:24,temperature:0})
-        });
+        let r=null;
+        for(let attempt=0; attempt<3; attempt++){
+          r=await fetch(endpoint,{
+            method:'POST',
+            headers,
+            body:JSON.stringify({model:kojoModel,messages:[{role:'user',content:'Reply with exactly: KOJO_OK'}],max_tokens:24,temperature:0})
+          });
+          if(attempt<2 && (r.status===530||r.status===502||r.status===503||r.status===504)){
+            await new Promise(w=>setTimeout(w,900*(attempt+1)));
+            continue;
+          }
+          break;
+        }
+        if(r && r.status===530) throw new Error('Kojo\u2019s API is offline (Cloudflare 530 / error 1033) — the relay is healthy, the outage is at api.kojo.sh. Try again in a few minutes.');
         const j=await r.json().catch(()=>({}));
         if(j.error?.message) throw new Error(j.error.message);
         const txt=(j.choices&&(j.choices[0].message?.content||j.choices[0].delta?.content))||'';
