@@ -159,6 +159,8 @@ Storage is `localStorage` first: it lives in that browser profile for that site'
 origin, so the rail is instant and works offline. Clearing site data, private
 windows, or opening the page from a different URL or `file://` starts empty.
 
+<a id="online-chat-sync" name="online-chat-sync"></a>
+
 ### Online chat sync (sign in, chats follow you)
 
 The rail's footer button **Sign in to sync** turns the saved chats into an online
@@ -226,9 +228,12 @@ pixels before upload to keep payloads small.
    *Create account*. Passwords must be six characters or more. Anyone who forgets
    one can press *Email me a sign-in link instead* and get back in without it.
 4. **Project Settings → API**: copy the *Project URL* and the *anon public* key
-   into `HOMEOSYNC_URL` and `HOMEOSYNC_KEY` in `recommender.html` (search for
-   `HOMEOSYNC_URL`), then reload. The first sign-in uploads the chats already on
-   that device.
+   into the sync panel — open **Sign in to sync → Use a different project** (or
+   the **Set up** panel on a page that has no project yet), paste both, press
+   **Connect**, then create an account. The values stay in that browser, so no
+   file edit is needed; they can instead be written into `HOMEOSYNC_URL` and
+   `HOMEOSYNC_KEY` in `recommender.html` (search for `HOMEOSYNC_URL`). The first
+   sign-in uploads the chats already on that device.
 5. **Google sign-in (optional)**: only needed if you want the Google button to
    work. Create an OAuth client in the [Google Cloud
    console](https://console.cloud.google.com/apis/credentials) — *Create

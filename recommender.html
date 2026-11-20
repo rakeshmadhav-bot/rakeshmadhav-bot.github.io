@@ -118,6 +118,7 @@
 .sb-sync-block{display:grid;gap:7px}
 .sb-sync-panel[hidden],.sb-sync-block[hidden]{display:none !important}
 .sb-sync-panel .chat-hist-empty{padding:0;font-size:12px}
+.sb-sync-panel a{color:var(--accent);text-underline-offset:2px}
 .sb-sync-panel .sb-link{text-align:left}
 .sb-sync-panel .sb-search{width:100%}
 .sb-sync-google{
@@ -221,6 +222,7 @@
           </form>
           <button type="button" class="sb-link" onclick="syncSendLink()">Email me a sign-in link instead</button>
           <div class="chat-hist-empty">Any email works; the same email and password on another device shows the same chats.</div>
+          <button type="button" class="sb-link" onclick="syncShowSetup()">Use a different project</button>
         </div>
         <div id="syncSignedIn" class="sb-sync-block" hidden>
           <div id="syncWho" class="chat-hist-empty"></div>
@@ -228,7 +230,15 @@
           <button type="button" class="sb-link" onclick="syncSignOut()">Sign out</button>
         </div>
         <div id="syncSetup" class="sb-sync-block chat-hist-empty" hidden>
-          Online sync needs a Supabase project. Run the SQL in README → “Online chat sync”, then paste the project URL and anon key into <code>HOMEOSYNC_URL</code> and <code>HOMEOSYNC_KEY</code> in the chat-history script of this page (search for <code>HOMEOSYNC_URL</code>).
+          <div>Online sync keeps your chats in your own free Supabase project, so the same email and password works on every device. <a href="https://github.com/rakeshmadhav-bot/rakeshmadhav-bot.github.io/blob/main/README.md#online-chat-sync" target="_blank" rel="noopener">Set-up steps — README → Online chat sync</a>, then paste the two values here:</div>
+          <form id="syncCfgForm" class="sb-sync-block" onsubmit="syncSaveConfig(event)">
+            <input id="syncCfgUrl" class="sb-search" type="url" placeholder="https://your-project.supabase.co" aria-label="Supabase project URL" autocomplete="url" spellcheck="false">
+            <input id="syncCfgKey" class="sb-search" type="text" placeholder="anon public key" aria-label="Supabase anon public key" autocomplete="off" spellcheck="false">
+            <div class="sb-sync-row">
+              <button type="submit" class="sb-sync-primary">Connect</button>
+              <button type="button" class="sb-link" onclick="syncForgetConfig()">Forget</button>
+            </div>
+          </form>
         </div>
         <div id="syncMsg" class="chat-hist-empty" role="status" aria-live="polite"></div>
       </div>
@@ -4260,13 +4270,24 @@ function chatHistoryWriteLean(arr){
    "Online chat sync" for the table and policies. Setup: create a Supabase
    project, run that SQL, then fill in the two constants below (the anon key is
    public by design; RLS is what protects the data). */
-var HOMEOSYNC_URL='';   // e.g. https://abcdefghijkl.supabase.co
-var HOMEOSYNC_KEY='';   // the project's anon / publishable key
+var HOMEOSYNC_URL='';   // optional default, e.g. https://abcdefghijkl.supabase.co
+var HOMEOSYNC_KEY='';   // optional default: the project's anon / publishable key
+var HOMEOSYNC_CFG_KEY='homeo_sync_cfg';   // project pasted in the panel: {url,key}
 var HOMEOSYNC_TABLE='homeo_chats';
 var HOMEOSYNC_LOG_MAX=400000;
-var homeoSync={client:null,user:null,pulling:false,starting:false};
+var homeoSync={client:null,user:null,pulling:false,starting:false,cfgEdit:false};
 var _syncUpsertTimers={};
-function syncConfigured(){ return !!(HOMEOSYNC_URL && HOMEOSYNC_KEY); }
+/* Which project to talk to: one pasted into the panel wins over the two constants
+   above, so the page can be pointed at a project without editing this file. */
+function syncConfig(){
+  var url=HOMEOSYNC_URL||'', key=HOMEOSYNC_KEY||'';
+  try{
+    var o=JSON.parse(localStorage.getItem(HOMEOSYNC_CFG_KEY)||'null');
+    if(o && o.url && o.key){ url=String(o.url); key=String(o.key); }
+  }catch(e){}
+  return {url:String(url||'').trim().replace(/\/+$/,''), key:String(key||'').trim()};
+}
+function syncConfigured(){ var c=syncConfig(); return !!(c.url && c.key); }
 function syncStatusLine(txt){ var el=document.getElementById('syncMsg'); if(el) el.textContent=txt||''; }
 function syncRenderUi(){
   var on=!!(homeoSync.client && homeoSync.user);
@@ -4278,7 +4299,7 @@ function syncRenderUi(){
   if(state) state.textContent=on?'On':(syncConfigured()?'Off':'Set up');
   if(out) out.hidden=!syncConfigured()||on;
   if(inn) inn.hidden=!on;
-  if(setup) setup.hidden=syncConfigured();
+  if(setup) setup.hidden=on||(syncConfigured()&&!homeoSync.cfgEdit);
   if(who && homeoSync.user) who.textContent='Signed in as '+(homeoSync.user.email||'your account');
   if(btn) btn.setAttribute('aria-expanded', (document.getElementById('syncPanel')&&!document.getElementById('syncPanel').hidden)?'true':'false');
 }
@@ -4290,11 +4311,12 @@ function syncToggle(){
 }
 async function syncInit(){
   syncRenderUi();
-  if(!syncConfigured() || homeoSync.starting) return;
+  if(!syncConfigured() || homeoSync.starting || homeoSync.client) return;
   homeoSync.starting=true;
   try{
+    var cfg=syncConfig();
     var mod=await import('https://esm.sh/@supabase/supabase-js@2');
-    homeoSync.client=mod.createClient(HOMEOSYNC_URL, HOMEOSYNC_KEY, {
+    homeoSync.client=mod.createClient(cfg.url, cfg.key, {
       auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}
     });
     var st=await homeoSync.client.auth.getSession();
@@ -4396,6 +4418,45 @@ async function syncPasswordSignIn(){
     syncStatusLine('Signed in — loading your chats…');
   }catch(e){ syncAuthError('Could not sign in: ', e); }
   finally{ if(btn) btn.disabled=false; }
+}
+/* Point this page at a Supabase project from the panel itself (the URL and the
+   anon key are public values), so no file edit is needed. */
+function syncShowSetup(){
+  homeoSync.cfgEdit=true;
+  var c=syncConfig(), u=document.getElementById('syncCfgUrl'), k=document.getElementById('syncCfgKey');
+  if(u) u.value=c.url;
+  if(k) k.value=c.key;
+  var p=document.getElementById('syncPanel'); if(p) p.hidden=false;
+  syncRenderUi();
+  syncStatusLine('Paste the project URL and anon key, then press Connect.');
+}
+function syncSaveConfig(ev){
+  if(ev && ev.preventDefault) ev.preventDefault();
+  var u=document.getElementById('syncCfgUrl'), k=document.getElementById('syncCfgKey');
+  var url=String((u&&u.value)||'').trim().replace(/\/+$/,'');
+  var key=String((k&&k.value)||'').trim();
+  if(!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(url)){
+    syncStatusLine('That is not a Supabase project URL — it looks like https://your-project.supabase.co');
+    if(u) u.focus(); return;
+  }
+  if(key.length<20){ syncStatusLine('Paste the anon public key from Project Settings → API.'); if(k) k.focus(); return; }
+  try{ localStorage.setItem(HOMEOSYNC_CFG_KEY, JSON.stringify({url:url,key:key})); }catch(e){}
+  homeoSync.cfgEdit=false; homeoSync.starting=false;
+  homeoSync.client=null; homeoSync.user=null;
+  if(u) u.value=''; if(k) k.value='';
+  syncRenderUi();
+  syncStatusLine('Connecting to '+url+'…');
+  syncInit().then(function(){
+    if(homeoSync.client) syncStatusLine('Connected — create an account or sign in above.');
+  });
+}
+function syncForgetConfig(){
+  try{ localStorage.removeItem(HOMEOSYNC_CFG_KEY); }catch(e){}
+  homeoSync.cfgEdit=false; homeoSync.client=null; homeoSync.user=null;
+  var u=document.getElementById('syncCfgUrl'), k=document.getElementById('syncCfgKey');
+  if(u) u.value=''; if(k) k.value='';
+  syncRenderUi();
+  syncStatusLine('Project forgotten — chats are saved on this device only.');
 }
 async function syncSendLink(){
   if(!syncConfigured()){ syncRenderUi(); return; }
