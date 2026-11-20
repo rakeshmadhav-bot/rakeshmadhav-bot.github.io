@@ -162,13 +162,15 @@ windows, or opening the page from a different URL or `file://` starts empty.
 ### Online chat sync (sign in, chats follow you)
 
 The rail's footer button **Sign in to sync** turns the saved chats into an online
-account: **Continue with Google** (or an emailed sign-in link as a fallback), and
-every chat you write is mirrored to a `homeo_chats` table that only your account
-can read. On another device, sign in
-there and the same chats appear in the rail — with rename, pin, delete, search,
+account, made right in the panel: type an email address and a password and press
+**Create account**, then **Sign in** with the same two things on any other device.
+**Continue with Google** does the same in one tap once that provider is set up, and
+the one-time email link stays as a fallback. Every chat you write is mirrored to a
+`homeo_chats` table that only your account can read, so on your phone or another
+computer the same chats appear in the rail — with rename, pin, delete, search,
 import and export unchanged, because they all work on the local cache and the
-cache is refreshed from the account. Without a connection, or when signed out,
-the app keeps saving to the browser exactly as before.
+cache is refreshed from the account. Without a connection, or when signed out, the
+app keeps saving to the browser exactly as before.
 
 The **anon key is public** (it ships in the page); **row-level security** is what
 keeps rows private. Each row is stamped with `auth.uid()` on the server, and every
@@ -215,21 +217,28 @@ pixels before upload to keep payloads small.
 2. **Authentication → URL Configuration**: set *Site URL* to the site
    (`https://<user>.github.io/<repo>/`) and add it, plus
    `http://localhost:3000/recommender.html`, to *Redirect URLs*. That list is
-   the only place the page may return to after signing in.
-3. **Google sign-in (optional but recommended)**: create an OAuth client in the
-   [Google Cloud console](https://console.cloud.google.com/apis/credentials) —
-   *Create credentials → OAuth client ID → Web application*, with
+   the only place the page may return to after signing in or confirming an
+   email.
+3. **Accounts**: nothing to turn on. *Authentication → Sign In / Providers →
+   Email* is enabled by default, which is what **Create account** and **Sign in**
+   use. Leave **Confirm email** on and each new account opens one link from its
+   inbox before signing in; switch it off to let people in the moment they press
+   *Create account*. Passwords must be six characters or more. Anyone who forgets
+   one can press *Email me a sign-in link instead* and get back in without it.
+4. **Project Settings → API**: copy the *Project URL* and the *anon public* key
+   into `HOMEOSYNC_URL` and `HOMEOSYNC_KEY` in `recommender.html` (search for
+   `HOMEOSYNC_URL`), then reload. The first sign-in uploads the chats already on
+   that device.
+5. **Google sign-in (optional)**: only needed if you want the Google button to
+   work. Create an OAuth client in the [Google Cloud
+   console](https://console.cloud.google.com/apis/credentials) — *Create
+   credentials → OAuth client ID → Web application*, with
    `https://<project-ref>.supabase.co/auth/v1/callback` as an *Authorized
    redirect URI*. Then in Supabase open **Authentication → Sign In / Providers →
    Google**, enable it and paste the client ID and client secret. While the
    Google consent screen is still in *Testing*, only the test users you list can
-   sign in; publish the app to allow any Google account. The email link keeps
-   working either way, so leaving this step out is not a break — the panel just
-   offers the email form only.
-4. **Project Settings → API**: copy the *Project URL* and the *anon public* key
-   into `HOMEOSYNC_URL` and `HOMEOSYNC_KEY` in `recommender.html` (search for
-   `HOMEOSYNC_URL`), then reload. The button then offers **Continue with
-   Google**; the first sign-in uploads the chats already on that device.
+   sign in; publish the app to allow any Google account. Email accounts work
+   whether or not this step is done.
 
 Signing out removes the synced chats from that browser (they stay in the
 account) — useful on a shared computer.

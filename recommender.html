@@ -133,6 +133,15 @@
   text-align:center;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--muted);border-top:1px solid var(--border);padding-top:8px;margin-top:2px;
 }
+.sb-sync-row{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.sb-sync-primary{
+  flex:1;padding:8px 10px;border:1px solid var(--accent);border-radius:8px;
+  background:var(--accent);color:#fff;font:inherit;font-size:13px;font-weight:600;
+  cursor:pointer;white-space:nowrap;
+}
+.sb-sync-primary:hover{background:var(--accent2);border-color:var(--accent2)}
+.sb-sync-primary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sb-sync-primary[disabled]{opacity:.55;cursor:default}
 @media print{.kq-progress,.kq-actions{display:none}}
 </style>
 </head>
@@ -200,10 +209,18 @@
             </svg>
             <span>Continue with Google</span>
           </button>
-          <div class="chat-hist-empty">Sign in with the Google account you already use, and your chats follow you to every device you sign in on.</div>
-          <div class="sb-sync-or">or use an email link</div>
-          <input id="syncEmail" class="sb-search" type="email" placeholder="you@example.com" autocomplete="email" aria-label="Email for the sign-in link">
-          <button type="button" class="sb-link" onclick="syncSendLink()">Email me a sign-in link</button>
+          <div class="chat-hist-empty">Your chats follow you to every device you sign in on.</div>
+          <div class="sb-sync-or">or create an account</div>
+          <form id="syncForm" class="sb-sync-block" onsubmit="syncFormSubmit(event)">
+            <input id="syncEmail" class="sb-search" type="email" placeholder="you@example.com" autocomplete="username" aria-label="Email for your account">
+            <input id="syncPass" class="sb-search" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password for your account">
+            <div class="sb-sync-row">
+              <button type="submit" class="sb-sync-primary" id="syncCreateBtn" value="create">Create account</button>
+              <button type="submit" class="sb-link" id="syncSignInBtn" value="signin">Sign in</button>
+            </div>
+          </form>
+          <button type="button" class="sb-link" onclick="syncSendLink()">Email me a sign-in link instead</button>
+          <div class="chat-hist-empty">Any email works; the same email and password on another device shows the same chats.</div>
         </div>
         <div id="syncSignedIn" class="sb-sync-block" hidden>
           <div id="syncWho" class="chat-hist-empty"></div>
@@ -4319,6 +4336,66 @@ async function syncGoogle(){
     });
     if(res && res.error) syncStatusLine('Could not open Google sign-in: '+res.error.message);
   }catch(e){ syncStatusLine('Could not open Google sign-in: '+String(e&&e.message||e)); }
+}
+/* Create an account and sign in with an email and password, right in this panel —
+   the same thing ChatGPT does, but the account lives in your own Supabase project,
+   and the Google provider is not needed for it. */
+/* One form for both buttons, so password managers offer to save and Enter submits. */
+function syncFormSubmit(ev){
+  if(ev && ev.preventDefault) ev.preventDefault();
+  var b=ev && ev.submitter;
+  if(b && b.value==='create') syncCreateAccount();
+  else syncPasswordSignIn();
+}
+function syncCredentials(){
+  var e=document.getElementById('syncEmail'), p=document.getElementById('syncPass');
+  var email=e?String(e.value||'').trim():'';
+  var pass=p?String(p.value||''):'';
+  if(!email || email.indexOf('@')<1){ syncStatusLine('Type your email address first.'); if(e) e.focus(); return null; }
+  if(pass.length<6){ syncStatusLine('Use at least 6 characters for the password.'); if(p) p.focus(); return null; }
+  return {email:email, password:pass};
+}
+function syncAuthError(prefix, err){
+  var m=String(err&&err.message||err||'');
+  if(/invalid login/i.test(m)) m='that email and password do not match an account';
+  else if(/email not confirmed/i.test(m)) m='open the confirmation link we emailed you first';
+  else if(/already registered/i.test(m)) m='an account with that email already exists — use Sign in';
+  syncStatusLine(prefix+m+'.');
+}
+function syncClearPassword(){ var p=document.getElementById('syncPass'); if(p) p.value=''; }
+async function syncCreateAccount(){
+  if(!syncConfigured()){ syncRenderUi(); return; }
+  var c=syncCredentials(); if(!c) return;
+  if(!homeoSync.client){ syncStatusLine('Sync is still starting — try again in a moment.'); return; }
+  var btn=document.getElementById('syncCreateBtn');
+  if(btn) btn.disabled=true;
+  syncStatusLine('Creating your account…');
+  try{
+    var res=await homeoSync.client.auth.signUp({
+      email:c.email, password:c.password,
+      options:{emailRedirectTo:location.origin+location.pathname}
+    });
+    if(res && res.error){ syncAuthError('Could not create the account: ', res.error); return; }
+    syncClearPassword();
+    if(res && res.data && res.data.session) syncStatusLine('Account created — signing you in…');
+    else syncStatusLine('Account created. Open the confirmation email sent to '+c.email+', then sign in here.');
+  }catch(e){ syncAuthError('Could not create the account: ', e); }
+  finally{ if(btn) btn.disabled=false; }
+}
+async function syncPasswordSignIn(){
+  if(!syncConfigured()){ syncRenderUi(); return; }
+  var c=syncCredentials(); if(!c) return;
+  if(!homeoSync.client){ syncStatusLine('Sync is still starting — try again in a moment.'); return; }
+  var btn=document.getElementById('syncSignInBtn');
+  if(btn) btn.disabled=true;
+  syncStatusLine('Signing in…');
+  try{
+    var res=await homeoSync.client.auth.signInWithPassword({email:c.email, password:c.password});
+    if(res && res.error){ syncAuthError('Could not sign in: ', res.error); return; }
+    syncClearPassword();
+    syncStatusLine('Signed in — loading your chats…');
+  }catch(e){ syncAuthError('Could not sign in: ', e); }
+  finally{ if(btn) btn.disabled=false; }
 }
 async function syncSendLink(){
   if(!syncConfigured()){ syncRenderUi(); return; }
