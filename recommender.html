@@ -111,7 +111,7 @@
 .sb-sync{position:relative}
 .sb-sync-panel{
   position:absolute;left:0;right:0;bottom:calc(100% + 8px);z-index:30;
-  display:grid;gap:7px;padding:10px;max-height:58vh;overflow:auto;
+  display:grid;gap:7px;padding:10px;max-height:76vh;overflow:auto;
   background:var(--card2);border:1px solid var(--border);border-radius:10px;
   box-shadow:0 10px 28px rgba(0,0,0,.22);
 }
@@ -119,6 +119,10 @@
 .sb-sync-panel[hidden],.sb-sync-block[hidden]{display:none !important}
 .sb-sync-panel .chat-hist-empty{padding:0;font-size:12px}
 .sb-sync-panel a{color:var(--accent);text-underline-offset:2px}
+.sb-sync-help{font-size:12px;color:var(--muted)}
+.sb-sync-help summary{cursor:pointer;color:var(--ink);font-weight:600}
+.sb-sync-help ol{margin:6px 0 6px;padding-left:18px;display:grid;gap:5px}
+.sb-sync-help li{line-height:1.35}
 .sb-sync-panel .sb-link{text-align:left}
 .sb-sync-panel .sb-search{width:100%}
 .sb-sync-google{
@@ -247,6 +251,15 @@
               <button type="button" class="sb-link" onclick="syncForgetConfig()">Forget</button>
             </div>
           </form>
+          <details class="sb-sync-help">
+            <summary>Where do I find these?</summary>
+            <ol>
+              <li>Open <a href="https://supabase.com/dashboard/new" target="_blank" rel="noopener">supabase.com/dashboard/new</a> → pick your organization, type a name (e.g. <b>homeoai</b>), choose the region nearest you, press <b>Create new project</b>. Wait a minute or two until it finishes.</li>
+              <li>In that project, open <b>Project Settings → API</b> (on newer dashboards: <b>Project Settings → Data API</b>).</li>
+              <li>Copy <b>Project URL</b> and the <b>anon public</b> / <b>publishable</b> key into the two boxes above, then press <b>Connect</b>.</li>
+            </ol>
+            <div>Pasting both values (or a whole code snippet) into either box is fine — the page picks out the URL and the key itself.</div>
+          </details>
         </div>
         <div id="syncMsg" class="chat-hist-empty" role="status" aria-live="polite"></div>
       </div>
@@ -4459,16 +4472,26 @@ function syncShowSetup(){
   syncRenderUi();
   syncStatusLine('Paste the project URL and anon key, then press Connect.');
 }
+function syncPickUrl(txt){ var m=String(txt||'').match(/https:\/\/[a-z0-9-]+\.supabase\.(?:co|in)/i); return m?m[0]:''; }
+function syncPickKey(txt){
+  var t=String(txt||'');
+  var j=t.match(/eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}/);
+  if(j) return j[0];
+  var p=t.match(/sb_publishable_[A-Za-z0-9_\-]{8,}/);
+  return p?p[0]:'';
+}
 function syncSaveConfig(ev){
   if(ev && ev.preventDefault) ev.preventDefault();
   var u=document.getElementById('syncCfgUrl'), k=document.getElementById('syncCfgKey');
-  var url=String((u&&u.value)||'').trim().replace(/\/+$/,'');
-  var key=String((k&&k.value)||'').trim();
-  if(!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(url)){
-    syncStatusLine('That is not a Supabase project URL — it looks like https://your-project.supabase.co');
+  var rawU=String((u&&u.value)||''), rawK=String((k&&k.value)||'');
+  // Accept the values in either box, with or without the surrounding snippet.
+  var url=(syncPickUrl(rawU)||syncPickUrl(rawK)).replace(/\/+$/,'');
+  var key=syncPickKey(rawK)||syncPickKey(rawU);
+  if(!url){
+    syncStatusLine('No project URL found. It looks like https://your-project.supabase.co — copy it from Project Settings → API.');
     if(u) u.focus(); return;
   }
-  if(key.length<20){ syncStatusLine('Paste the anon public key from Project Settings → API.'); if(k) k.focus(); return; }
+  if(key.length<20){ syncStatusLine('No anon public key found in that text. Copy the key marked anon public (or publishable) from Project Settings → API.'); if(k) k.focus(); return; }
   try{ localStorage.setItem(HOMEOSYNC_CFG_KEY, JSON.stringify({url:url,key:key})); }catch(e){}
   homeoSync.cfgEdit=false; homeoSync.starting=false;
   homeoSync.client=null; homeoSync.user=null;
