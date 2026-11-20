@@ -109,6 +109,7 @@
 /* online chat sync — sign-in panel floats above the rail button so the chat
    list never gets squeezed by an open panel */
 .sb-sync{position:relative}
+.sb-sync-out{display:block;padding:2px 8px 0;font-size:12px}
 .sb-sync-panel{
   position:absolute;left:0;right:0;bottom:calc(100% + 8px);z-index:30;
   display:grid;gap:7px;padding:10px;max-height:76vh;overflow:auto;
@@ -212,6 +213,7 @@
       <button type="button" class="sb-item" id="syncBtn" onclick="syncToggle()" aria-expanded="false" aria-controls="syncPanel">
         <span id="syncLabel">Sign in to sync</span> <span class="sb-faint" id="syncState"></span>
       </button>
+      <button type="button" class="sb-link sb-sync-out" id="syncOutBtn" onclick="syncSignOut()" hidden>Sign out</button>
       <div id="syncPanel" class="sb-sync-panel" hidden>
         <div id="syncSignedOut" class="sb-sync-block">
           <button type="button" class="sb-sync-google" id="syncGoogleBtn" onclick="syncGoogle()">
@@ -4352,6 +4354,7 @@ function syncRenderUi(){
   if(setup) setup.hidden=on||homeoSync.recovery||(syncConfigured()&&!homeoSync.cfgEdit);
   var np=document.getElementById('syncNewPass'); if(np) np.hidden=!homeoSync.recovery;
   if(who && homeoSync.user) who.textContent='Signed in as '+(homeoSync.user.email||'your account');
+  var ob=document.getElementById('syncOutBtn'); if(ob) ob.hidden=!on;
   if(btn) btn.setAttribute('aria-expanded', (document.getElementById('syncPanel')&&!document.getElementById('syncPanel').hidden)?'true':'false');
 }
 function syncToggle(){
