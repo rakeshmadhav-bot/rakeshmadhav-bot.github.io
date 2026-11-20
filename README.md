@@ -245,6 +245,10 @@ pixels before upload to keep payloads small.
    sign in; publish the app to allow any Google account. Email accounts work
    whether or not this step is done.
 
+**Forgot password?** in the panel sends a reset link for the address typed in
+the email field; opening it brings you back to the page with a **Save new
+password** box. `Email me a sign-in link instead` is the passwordless fallback.
+
 Signing out removes the synced chats from that browser (they stay in the
 account) — useful on a shared computer.
 
